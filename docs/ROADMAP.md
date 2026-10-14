@@ -283,11 +283,17 @@ B 组额外抓到了「Oracle 用 Binlog 同步」这条 M-01（A 组漏判）�
 
 **一键自检**：`python tools/selfcheck.py` → 环境 + 回归测试（163）+ 回归简历（34）+ SKILL.md（17）。
 
-> **DoD 1 的残余说明（诚实记录）**：触发词是**结构性验证**（frontmatter 可解析、名称一致、
-> 4 类说法被覆盖、章节与脚本引用齐全），不是"在真实 agent 会话里被唤起过"。
-> 原因是当前 DSH 会话的 skill 目录由宿主注入、bundled skills 打包在 `app.asar` 内不可写，
-> 用户级 `~/.dsh/skills` 也不存在——把本目录注册进去需要新开一个会话。
-> 因此这一条只能验证到"该被唤起时不会因格式问题失败"，**不能**证明"确实被唤起"。
+> **DoD 1 的验证方式（已实测）**：`tools/check_skill.py` 做结构性验证（frontmatter 可解析、名称一致、
+> 4 类说法被覆盖、章节与脚本引用齐全），**并且已在真实会话中验证过安装与唤起链路**：
+> `npx skills add 1576584678/mock-interview -g -a codex -y` → CLI 输出 `Found 1 skill: mock-interview`，
+> 文件落到 `~/.agents/skills/mock-interview/`（DSH 的 `user-agents` 扫描根），
+> **本会话的技能目录当场就出现了 `mock-interview`**（文件监视器生效，无需重启会话）。
+> 该副本再跑 `python tools/selfcheck.py` 得到 **12 通过 / 0 失败**，说明装好的 skill 自包含可运行。
+> 残余：验证到的是"安装 + 进入技能目录"，**没有**用一句真人触发语走完整个 skill 流程。
+>
+> 附带查清了 DSH 的扫描根（读自打包内的 `@deepseek-ai/dsh-skill-filesystem`）：
+> `<项目根>/.dsh/skills` → `<项目根>/.agents/skills` → `customSkillDirs` → `~/.dsh/skills` → `~/.agents/skills` → 内置；
+> `<项目根>` = 从 cwd 往上第一个含 `.git` 的目录。详见 [`INSTALL.md`](../INSTALL.md)。
 
 **P6 踩过的坑（都是"首次使用者一定会踩"的）**
 

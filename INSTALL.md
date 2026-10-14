@@ -66,9 +66,59 @@ ls examples/minimal/work          # 产物：01–05 五件套 + out/*.json
 
 ## 把 skill 装进 agent 环境
 
-`SKILL.md` 是本 skill 的入口（含 YAML frontmatter 的 `name` / `description` 触发词）。
-把它所在目录放进你的 agent 环境的 skills 目录，新开会话即可通过
-「模拟面试 / 简历体检 / 这份 JD 该要多少薪资 / 核对简历是否属实」等说法被唤起。
+`SKILL.md` 是本 skill 的入口（YAML frontmatter 里的 `name` + `description` 决定它何时被唤起）。
+两种装法，任选其一。
+
+### 方式 A：用 skills CLI 装（推荐，跨 agent 通用）
+
+```bash
+npx skills add 1576584678/mock-interview -g -a codex -y
+```
+
+- `-g` 装到用户级（所有项目可用）；省略则装进当前项目。
+- `-a <agent>` 选择目标 agent。**选 `codex` / `cline` / `warp` / `zed` 这类，全局路径是
+  `~/.agents/skills/`**，这正是 DSH 会扫描的目录；装给 Claude Code 就用 `-a claude-code`
+  （落到 `~/.claude/skills/`）。
+- 先看它发现了什么：`npx skills add 1576584678/mock-interview --list`
+  （实测输出：`Found 1 skill` → `mock-interview`）。
+
+### 方式 B：直接放进 DSH 的 skill 目录
+
+```bash
+git clone https://github.com/1576584678/mock-interview.git ~/.dsh/skills/mock-interview
+```
+
+DSH 从这几个根目录扫描（按优先级），目录里既可以是 `<名字>/SKILL.md`，也可以是单个 `<名字>.md`：
+
+| 作用域 | 目录 |
+|---|---|
+| 项目级 | `<项目根>/.dsh/skills/`、`<项目根>/.agents/skills/` |
+| 用户级 | `~/.dsh/skills/`（可用 `DSH_HOME` 覆盖）、`~/.agents/skills/`（可用 `DSH_AGENTS_HOME` 覆盖） |
+| 自定义 | 配置项 `customSkillDirs` 里列出的目录 |
+| 内置 | DSH 自带（打包在 `app.asar` 内，只读） |
+
+> **项目根**怎么定的：从当前工作目录往上找到**第一个含 `.git` 的目录**；找不到就是当前目录本身。
+> 所以项目级安装对"在哪个目录启动 agent"敏感，个人使用建议用用户级。
+
+### 装完怎么确认
+
+```bash
+cd ~/.agents/skills/mock-interview   # 或你选择的安装目录
+python tools/selfcheck.py            # 环境 + 163 项单测 + 34 项回归简历 + 17 项 SKILL.md 自检
+```
+
+实测：把仓库装到 `~/.agents/skills/mock-interview` 后，`python tools/selfcheck.py` 输出
+**12 通过 / 0 警告 / 0 失败**，即整份 skill 自包含可运行。
+
+**不需要重启**：DSH 对 skill 根目录挂了文件监视器，新装的 skill 会被自动发现——
+实测在本会话安装后，技能目录当场就出现了 `mock-interview`。
+
+### 换到别的 agent
+
+同一份 skill 遵循通用的 Agent Skills 规范（`SKILL.md` + frontmatter）。只要目标 agent 支持该规范，
+用 `npx skills add ... -a <agent>` 即可；也可以用 `npx skills use 1576584678/mock-interview@mock-interview`
+**不安装、直接用一次**。唯一硬性要求是 frontmatter 里的 `name` 必须匹配
+`^[a-z0-9]+(?:-[a-z0-9]+)*$`（`mock-interview` 符合），且 `description` 非空。
 
 自检触发词格式：
 

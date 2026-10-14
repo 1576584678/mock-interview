@@ -40,15 +40,24 @@
 
 ## 二、快速开始
 
-**首次使用看 [`INSTALL.md`](INSTALL.md)**（3 步跑通）。最省事的验证方式：
+### 先把它装进 agent（一条命令）
+
+```bash
+npx skills add 1576584678/mock-interview -g -a codex -y     # 装到 ~/.agents/skills/（DSH 会扫描）
+```
+
+也可以直接放进 DSH 的 skill 目录（`~/.dsh/skills/mock-interview`，或项目内的 `.dsh/skills/`）。
+目录约定、扫描优先级、其它 agent 的装法见 [`INSTALL.md`](INSTALL.md)。
+
+### 再验证环境（不调用模型）
 
 ```bash
 git clone https://github.com/1576584678/mock-interview.git
 cd mock-interview
-python tools/selfcheck.py      # 环境自检 + 跑一遍内置回归（163 项 + 3 份回归简历 + SKILL.md 触发词）
+python tools/selfcheck.py      # 环境自检 + 163 项单测 + 34 项回归简历 + 17 项 SKILL.md 自检
 ```
 
-在 DSH 中使用：
+### 然后直接用
 
 ```
 @简历.pdf

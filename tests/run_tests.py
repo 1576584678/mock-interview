@@ -19,6 +19,7 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +38,7 @@ import report as report_mod               # noqa: E402
 import transcript as transcript_mod       # noqa: E402
 import export_resume as export_mod        # noqa: E402
 import verify_links as links_mod          # noqa: E402
+import verify_evidence as verify_mod      # noqa: E402
 
 RESUME = os.path.join(HERE, "fixtures", "sample_resume.md")
 JD = os.path.join(HERE, "fixtures", "sample_jd.txt")
@@ -634,6 +636,143 @@ def main():
     res3 = links_mod.check(p5, ["R-01", "R-02"], links_mod.scan(p5), strict=True)
     check("只出现在 1 个产物 → 判为孤岛", "R-02" in res3["orphan"], res3["orphan"])
     check("缺失的编号被识别为未进 04", "R-02" in res3["not_in_04"], res3["not_in_04"])
+
+    print("\n=== 16. P4 验真层 ===")
+    p4 = os.path.join(HERE, "tmp", "p4")
+    shutil.rmtree(p4, ignore_errors=True)
+    repo = os.path.join(p4, "fixture-repo")
+    os.makedirs(os.path.join(repo, "src", "test", "java", "demo"), exist_ok=True)
+    os.makedirs(os.path.join(repo, "src", "main", "java", "demo"), exist_ok=True)
+    os.makedirs(os.path.join(p4, "out", "real"), exist_ok=True)
+
+    # 代码夹具：@Test ×3（外加一个 @TestConfiguration 用于证明 \b 边界）、
+    # Redis List 追加（无阻塞消费）、resilience4j 依赖、注释掉的 CircuitBreaker、requestedShardCount
+    open(os.path.join(repo, "src", "test", "java", "demo", "DemoTest.java"), "w",
+         encoding="utf-8").write(
+        "@TestConfiguration\nclass Cfg {}\n"
+        + "\n".join("@Test\nvoid t%d() {}" % i for i in range(3)))
+    open(os.path.join(repo, "src", "main", "java", "demo", "RedisUtil.java"), "w",
+         encoding="utf-8").write(
+        "class RedisUtil {\n"
+        "  // 消息列表用 Redis List 结构存储, RPUSH 到 List\n"
+        "  void append(String k, String v) { opsForList().rightPush(k, v); }\n"
+        "  Object all(String k) { return opsForList().range(k, 0, -1); }\n"
+        "}\n")
+    open(os.path.join(repo, "src", "main", "java", "demo", "Comment.java"), "w",
+         encoding="utf-8").write("class X {\n  // new CircuitBreaker('c')\n}\n")
+    open(os.path.join(repo, "src", "main", "java", "demo", "Shard.java"), "w",
+         encoding="utf-8").write("class S {\n  private Long requestedShardCount;\n}\n")
+    open(os.path.join(repo, "pom.xml"), "w", encoding="utf-8").write(
+        "<dependency><groupId>io.github.resilience4j</groupId>"
+        "<artifactId>resilience4j-circuitbreaker</artifactId></dependency>\n")
+
+    def _g(*argv):
+        return subprocess.run(["git", "-C", repo] + list(argv), capture_output=True,
+                              check=False)
+
+    _g("init", "-q")
+    _g("config", "user.name", "tester")
+    _g("config", "user.email", "t@example.com")
+    for i in range(3):
+        _g("commit", "-q", "--allow-empty", "-m", f"c{i}")
+    _g("add", "-A")
+    _g("commit", "-q", "-m", "code")
+
+    resume_txt = (
+        "具备 12 年 Java 后端经验，精通 Java 并发与 JVM 调优。\n"
+        "设计并实现基于 Binlog + Kafka 的实时数据同步链路，将 Oracle 数据实时同步至 MySQL。\n"
+        "基于 Redis 队列 + 异步任务调度实现文档向量化自动更新。\n"
+        "累计输出 150 次提交；编写 111 个单元测试。\n"
+        "熟悉分库分表、索引优化、事务隔离。\n"
+        "推动平台级熔断（Resilience4j）统一挂在 HTTP 客户端拦截器层。\n"
+        "登录失败风控机制将异常登录拦截率提升至 95%。\n")
+    open(os.path.join(p4, "out", "resume.txt"), "w", encoding="utf-8").write(resume_txt)
+    write_json(os.path.join(p4, "out", "real", "resume.json"),
+               {"basic": {"name": "张三"},
+                "claims": {"quantitative": [
+                    {"id": "C-Q01", "text": "登录失败风控机制将异常登录拦截率提升至 95%。",
+                     "value": 95, "unit": "%", "has_definition": False}]}})
+    write_json(os.path.join(p4, "out", "risks.json"), {"risks": [
+        {"id": "R-01", "type": "口径缺失", "severity": "🟠", "original": "登录失败风控机制将异常登录拦截率提升至 95%。"},
+        {"id": "R-02", "type": "夸大词", "severity": "🟡", "original": "熟悉分库分表、索引优化、事务隔离"},
+        {"id": "R-03", "type": "机制存疑", "severity": "🟡", "original": "Redis 队列 + 异步任务调度"},
+    ]})
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        ev = verify_mod.main(["--root", p4, "--resume", "out/real/resume.json",
+                              "--text", "out/resume.txt",
+                              "--repo", f"coach={repo}", "--repo", f"qydn={repo}",
+                              "--author", "tester", "--quiet"])
+    by_id = {c["id"]: c for c in ev["claims"]}
+
+    check("P4 触发全部预期规则",
+          {"E-01", "E-03", "E-04", "E-06", "E-08", "E-09", "E-10", "E-11", "E-12"}
+          <= set(by_id), sorted(by_id))
+    c = by_id["E-01"]
+    check("Oracle+binlog → 与事实不符 / 当场可判 / 🔴",
+          c["verdict"] == "与事实不符" and c["visibility"] == "当场可判" and c["severity"] == "🔴",
+          c["severity"])
+    c = by_id["E-03"]
+    check("提交数：简历 150 vs git 实测 4 → 与事实不符",
+          c["expected"] == 150 and c["observed"] == 4 and c["verdict"] == "与事实不符",
+          (c["expected"], c["observed"]))
+    check("代码级不符 → 需材料才可判 / 🟡（不判编造）",
+          c["visibility"] == "需材料才可判" and c["severity"] == "🟡" and not c["is_fabrication"],
+          (c["visibility"], c["severity"]))
+    c = by_id["E-04"]
+    check("@Test 计数正确（@TestConfiguration 不计入）",
+          c["observed"] == 3 and c["verdict"] == "与事实不符", c["observed"])
+    c = by_id["E-06"]
+    check("Redis 队列无阻塞消费语义 → 存疑 / 追问可判 / 🟠",
+          c["verdict"] == "存疑" and c["visibility"] == "追问可判" and c["severity"] == "🟠",
+          (c["verdict"], c["severity"]))
+    check("pom 里有 resilience4j → 熔断判可信", by_id["E-08"]["verdict"] == "可信")
+    check("requestedShardCount 不算分库分表 → 存疑", by_id["E-11"]["verdict"] == "存疑")
+    check("无法验证的声明不判编造",
+          by_id["E-12"]["verdict"] == "无法验证" and not by_id["E-12"]["is_fabrication"])
+    check("汇总里编造判定为 0", ev["summary"]["fabrications"] == [])
+    check("必改/必须准备/无需准备三类分开",
+          ev["summary"]["must_fix"] == ["E-01"]
+          and set(ev["summary"]["must_prepare"]) == {"E-06", "E-08", "E-09", "E-10", "E-11"},
+          ev["summary"]["must_prepare"])
+    check("只读校验通过且记录了分支/HEAD",
+          ev["readonly_verified"] and ev["repos"]["coach"]["head"]
+          and ev["repos"]["coach"]["branch"], ev["repos"])
+    check("证据带可复现命令",
+          "rev-list" in by_id["E-03"]["command"] and "grep" in by_id["E-11"]["command"])
+    check("编号闭环：风险点按类型挂上验真结论",
+          "R-01" in by_id["E-09"]["risk_ids"] and "R-02" in by_id["E-11"]["risk_ids"],
+          {k: v["risk_ids"] for k, v in by_id.items()})
+
+    # 注释行不算证据
+    only_comment = os.path.join(p4, "comment-only")
+    os.makedirs(only_comment, exist_ok=True)
+    open(os.path.join(only_comment, "A.java"), "w", encoding="utf-8").write(
+        "class A {\n  // new CircuitBreaker('x')\n  /* Resilience4j */\n}\n")
+    cnt, _s, _n = verify_mod.grep_repo(only_comment, r"CircuitBreaker|Resilience4j",
+                                       Log(quiet=True))
+    check("注释掉的实现不算证据", cnt == 0, cnt)
+
+    # 只读白名单
+    try:
+        verify_mod._git(repo, ["commit", "-m", "x"])
+        blocked = False
+    except SystemExit:
+        blocked = True
+    check("非只读 git 子命令被拒绝", blocked)
+
+    # 未提供仓库 → 无法验证 + 不可判
+    with contextlib.redirect_stdout(io.StringIO()):
+        ev2 = verify_mod.main(["--root", p4, "--resume", "out/real/resume.json",
+                               "--text", "out/resume.txt", "--author", "tester",
+                               "--out", "out/ev2.json", "--md-out", "out/ev2.md", "--quiet"])
+    e3 = {c["id"]: c for c in ev2["claims"]}["E-03"]
+    check("未提供仓库 → 无法验证 / 不可判 / ⚪",
+          e3["verdict"] == "无法验证" and e3["visibility"] == "不可判" and e3["severity"] == "⚪",
+          (e3["verdict"], e3["visibility"]))
+    check("验真 md 落盘且含可复现命令",
+          os.path.exists(os.path.join(p4, "out", "ev2.md"))
+          and "rev-list" in open(os.path.join(p4, "out", "ev2.md"), encoding="utf-8").read())
 
     print(f"\n===== 结果: {len(PASS)} 通过 / {len(FAIL)} 失败 =====")
     if FAIL:

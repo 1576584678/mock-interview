@@ -1,9 +1,9 @@
 # pipeline · 脚本接口约定
 
-> 本目录实现进度：**P1、P2、P3、P5 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
+> 本目录实现进度：**P1、P2、P3、P4、P5 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
 > `parse_jd.py` / `risks.py` / `orchestrate.py` / `score.py` / `salary.py` / `report.py` /
-> `transcript.py` / `export_resume.py` / `verify_links.py`）；
-> P4（`verify_evidence.py`）仍待开发。
+> `transcript.py` / `export_resume.py` / `verify_links.py` / `verify_evidence.py`）；
+> 只剩 P6（打包 / 示例 / 安装说明）待做。
 > 所有脚本遵循同一约定：**读 JSON / 写 JSON，参数走命令行，不依赖第三方库（优先）。**
 
 ## 运行方式
@@ -33,7 +33,13 @@ python pipeline/export_resume.py --root . --trim-long-items 900     # 05 HTML
 python pipeline/export_resume.py --root . --pdf --confirm           # 05 PDF（人工闸门）
 python pipeline/verify_links.py --root . --strict                   # 验收 A5
 
-python tests/run_tests.py                     # 125 项回归测试
+# P4 验真层（只读：绝不修改被检查仓库）
+python pipeline/verify_evidence.py --root . --resume out/real/resume.json \
+      --repo coach=C:/project/面试教练 --repo qydn=C:/project/richinfo-qydn-server \
+      --author liyuelin --out out/evidence.json
+python pipeline/report.py --root . --only 04 --evidence out/evidence.json   # 04 带代码验真列
+
+python tests/run_tests.py                     # 143 项回归测试
 ```
 
 中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
@@ -54,7 +60,7 @@ python tests/run_tests.py                     # 125 项回归测试
 | `transcript.py` | P5 | ✅ | 渲染 `01_面试对话实录.md`：逐字稿 + 追问链层次 + 标记 + 反问 |
 | `export_resume.py` | P5 | ✅ | 渲染 `05_改后简历.html`：成对替换（不新增数字）、改动说明打印隐藏、PDF 人工闸门 |
 | `verify_links.py` | P5 | ✅ | 验收 A5：五件套编号引用闭环（无悬空 / 无孤岛 / 全部进 04） |
-| `verify_evidence.py` | P4 | ⬜ | 待开发（护城河） |
+| `verify_evidence.py` | P4 | ✅ | 代码/git 交叉核对：四档判决 + **面试可见性决定严重度**；只读白名单 + 前后 HEAD 比对 + 注释不算证据 |
 | `export_resume.py`（P4 复核） | P4 | ⬜ | 待开发 |
 
 ## 约定
@@ -118,37 +124,59 @@ python pipeline/<script>.py --in <path> --out <path> [options]
 
 ---
 
-## 3. `verify_evidence.py`（P4 · 护城河）
+## 3. `verify_evidence.py`（P4 · 护城河）✅
 
-**输入**：`resume.json`（用其 `claims`）、`--repo <代码仓库路径>`、可选 `--author` / `--since`
-**输出**：`evidence.json`
+**输入**：`--resume`（结构化简历，取其 `claims` 与正文）、`--repo 别名=路径`（可重复）、
+`--author`（提交类声明必需）、`--risks`（用于挂编号）
+**输出**：`out/evidence.json` + `out/evidence.md`
+
+```bash
+python pipeline/verify_evidence.py --root . --resume out/real/resume.json \
+      --repo coach=C:/project/面试教练 --repo qydn=C:/project/richinfo-qydn-server \
+      --author liyuelin --out out/evidence.json
+```
 
 ```json
 {
-  "repo": { "path": "", "branch": "", "head": "", "collected_at": "" },
+  "taken_at": "2026-02-09 14:31:07",
+  "author_filter": "liyuelin",
+  "repos": {"qydn": {"path": "C:/project/richinfo-qydn-server", "branch": "main", "head": "…"}},
+  "readonly_verified": true,
   "claims": [
     {
-      "id": "C-01", "type": "quantitative",
-      "text": "累计输出 150 次提交",
-      "method": "git log --author=<me> --oneline | wc -l",
-      "observed": "148",
-      "verdict": "与事实不符",
-      "confidence": 0.95
+      "id": "E-03", "kind": "quantitative", "title": "提交次数",
+      "claim_text": "累计输出 150 次提交", "expected": 150, "observed": 148,
+      "verdict": "与事实不符", "visibility": "需材料才可判", "severity": "🟡",
+      "is_fabrication": false,
+      "method": "git rev-list --count --author=<作者> HEAD",
+      "command": "git -C <repo> rev-list --count --author=liyuelin HEAD",
+      "evidence": "148", "risk_ids": []
     }
-  ]
+  ],
+  "summary": {"by_verdict": {}, "by_visibility": {}, "must_fix": [], "must_prepare": [],
+              "no_prep_needed": [], "fabrications": []}
 }
 ```
 
 **判决四档**：`可信` / `存疑` / `与事实不符` / `无法验证`
 
-**硬约束**
-- **只读**：绝不执行任何写操作（`git` 只用 `log/show/lrev-list/status` 等只读命令）。
-- 每条结论必须带 `method`（可复现命令），用户能自己验证。
+**严重度 = f(可见性, 判决)**，可见性四档：`当场可判` 🔴 ／ `追问可判` 🟠 ／
+`需材料才可判` 🟡→⚪ ／ `不可判` ⚪。**`is_fabrication` 在本层恒为 `False`**——
+代码里搜不到不等于面试里说了不存在的东西；只有面试实录（P3）能判编造。
+
+**硬约束（均有测试覆盖）**
+- **只读**：git 子命令走白名单（`rev-list/rev-parse/log/shortlog/status/branch/show/ls-files/grep/cat-file/diff`），
+  其余直接报错退出；取证前后比对分支与 HEAD，任何变化即中止。
+- 每条结论必须带 `command`（可复现命令）+ `evidence`（原始命中片段），用户能自己验证。
 - 记录取证时点、分支、HEAD commit（仓库状态会变）。
 - **`无法验证` 不得被判为编造。**
+- **注释行不算证据**（`//` `/*` `*` `#` `--` … 开头的行跳过），只在代码/配置类扩展名里找符号。
+- 关键词要能自证：`shard` 这种宽泛词会命中 `requestedShardCount`（索引分片数）→ 必须写成
+  `ShardingSphere|sharding-jdbc|分片键|…` 这类不可歧义的符号集。
 - 作者名需向用户确认（同一人多邮箱会漏统计）。
 
-**回归基线**：见 `docs/EVIDENCE.md` 第 5 节的 7 条实证案例，脚本至少要能复现前 6 条。
+**回归基线**：`docs/EVIDENCE.md` 第 5 节的 7 条实证案例（真实仓库上复现 6/7，
+未触发的那条由夹具仓库覆盖）+ 夹具仓库单测 18 项。
 
 ---
 

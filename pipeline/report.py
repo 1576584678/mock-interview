@@ -29,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 SEV_RANK = {"🔴": 0, "🟠": 1, "🟡": 2, "⚪": 3}
+VIS_RANK = {"当场可判": 0, "追问可判": 1, "需材料才可判": 2, "不可判": 3, "—": 9}
 
 # 确定性改写建议模板（按风险类型）——只给动作，不造事实
 REWRITE_FALLBACK = {
@@ -236,6 +237,16 @@ def build_salary(work, args) -> str:
 
 # ------------------------------------------------------------- 04 风险点清单
 
+def load_evidence(work, args) -> dict:
+    p = args.evidence if os.path.isabs(args.evidence) else os.path.join(work, args.evidence)
+    if not os.path.exists(p):
+        return {}
+    try:
+        return json.loads(read_text(p))
+    except Exception as e:  # noqa: BLE001
+        die(f"验真清单解析失败 {p}: {e}")
+
+
 def build_risks(work, args) -> str:
     risks = load(work, args.risks)
     resume = load(work, args.resume, required=False) or {}
@@ -247,6 +258,19 @@ def build_risks(work, args) -> str:
             rounds.append(load(work, f"rounds/{name}"))
     probes = probe_map(rounds)
 
+    # ---- P4 验真结果（可选）：决定排序与"面试前必做"清单 ----
+    ev = load_evidence(work, args)
+    claims = ev.get("claims") or []
+    ev_by_risk = {}
+    for c in claims:
+        for rid in c.get("risk_ids") or []:
+            ev_by_risk.setdefault(rid, []).append(c)
+    ev_extra = [c for c in claims if not (c.get("risk_ids") or [])]
+
+    def vis_rank_of(r):
+        cs = ev_by_risk.get(r["id"]) or []
+        return min((VIS_RANK.get(c["visibility"], 9) for c in cs), default=9)
+
     rew = load(work, args.rewrites, required=False) or {}
     provided = {x["risk_id"]: x for x in rew.get("rewrites", [])}
     for rid, x in provided.items():
@@ -257,19 +281,32 @@ def build_risks(work, args) -> str:
     counts = {}
     for r in risks:
         counts[r["severity"]] = counts.get(r["severity"], 0) + 1
-    order = sorted(risks, key=lambda r: (SEV_RANK.get(r["severity"], 9), r["id"]))
+    # 有验真结果时：**按面试可见性排序**（当场可判 → 追问可判 → 需材料 → 不可判）
+    if claims:
+        order = sorted(risks, key=lambda r: (vis_rank_of(r), SEV_RANK.get(r["severity"], 9), r["id"]))
+    else:
+        order = sorted(risks, key=lambda r: (SEV_RANK.get(r["severity"], 9), r["id"]))
+
+    src_line = ("> 说明：本清单只基于**文本判断**（简历原文 × JD 要求）。"
+                "标注「仅叙述」的条目在没有代码仓库验真前，只能提示风险，不能断言编造。")
+    if claims:
+        src_line = (f"> 说明：清单**已接入 P4 代码/git 验真**（取证时点 {ev.get('taken_at', '—')}，"
+                    f"作者过滤 `{ev.get('author_filter', '')}`，只读校验"
+                    f"{'通过' if ev.get('readonly_verified') else '未通过'}）。"
+                    "排序按**面试可见性**：当场可判 → 追问可判 → 需材料才可判 → 不可判。"
+                    "代码里搜不到 **不等于** 面试里说了不存在的东西——本 skill 从不因代码不符判定编造。")
 
     L = ["# 简历风险点清单", "",
          f"**生成时间**：{now()} ｜ **风险点**：{len(risks)} 条（" +
          "、".join(f"{k} {v} 条" for k, v in sorted(counts.items(), key=lambda kv: SEV_RANK.get(kv[0], 9))) +
-         "）", "",
-         "> 说明：本清单只基于**文本判断**（简历原文 × JD 要求）。"
-         "标注「仅叙述」的条目在没有代码仓库验真前，只能提示风险，不能断言编造。", "",
-         "---", "", "## 一、清单", "",
-         "| 编号 | 类型 | 严重度 | 可验证性 | 原文 | 问题 | 在对话中被追问 |",
-         "|---|---|---|---|---|---|---|"]
+         "）", "", src_line, "", "---", "", "## 一、清单", "",
+         "| 编号 | 类型 | 严重度 | 可验证性 | 代码验真（P4） | 原文 | 问题 | 在对话中被追问 |",
+         "|---|---|---|---|---|---|---|---|"]
     for r in order:
+        cs = ev_by_risk.get(r["id"]) or []
+        ev_cell = "；".join(f"{c['id']} {c['verdict']}／{c['visibility']}" for c in cs[:2]) or "—"
         L.append(f"| {r['id']} | {cell(r['type'])} | {r['severity']} | {cell(r['verifiability'])} | "
+                 f"{cell(ev_cell)} | "
                  f"{cell(r['original'])[:120]} | {cell(r['why'])} | "
                  f"{cell('、'.join(probes.get(r['id'], [])) or '**未被追问**')} |")
 
@@ -286,16 +323,72 @@ def build_risks(work, args) -> str:
             L.append(f"> 备注：{x['note']}")
         L.append("")
         L.append(f"追问准备：{cell(r['probe_hint'])}")
+        for c in (ev_by_risk.get(r["id"]) or []):
+            L.append("")
+            L.append(f"代码验真：**{c['id']} {c['severity']} {c['verdict']}**"
+                     f"（{c['visibility']}）｜方法：{c['method']}｜"
+                     f"命令：`{c.get('command', '')}`｜实测：{c.get('observed')}")
         L.append("")
+
+    if claims:
+        L += ["---", "", "## 三、代码 / git 验真清单（P4）", ""]
+        if ev.get("repos"):
+            L.append("| 仓库别名 | 路径 | 分支 | HEAD |")
+            L.append("|---|---|---|---|")
+            for a, r0 in ev["repos"].items():
+                L.append(f"| {a} | `{r0.get('path')}` | `{r0.get('branch')}` | "
+                         f"`{str(r0.get('head'))[:12]}` |")
+            L.append("")
+        s = ev.get("summary") or {}
+        L += [f"**结论分布**：可信 {s.get('by_verdict', {}).get('可信', 0)} ｜ "
+              f"存疑 {s.get('by_verdict', {}).get('存疑', 0)} ｜ "
+              f"与事实不符 {s.get('by_verdict', {}).get('与事实不符', 0)} ｜ "
+              f"无法验证 {s.get('by_verdict', {}).get('无法验证', 0)}；"
+              f"**编造判定 {len(s.get('fabrications') or [])} 项**"
+              "（代码不符一律不判编造）", "",
+              "| 编号 | 可见性 | 判决 | 严重度 | 声明 | 实测 | 可复现命令 | 关联风险点 |",
+              "|---|---|---|---|---|---|---|---|"]
+        for c in claims:
+            L.append(f"| {c['id']} | {c['visibility']} | {c['verdict']} | {c['severity']} | "
+                     f"{cell(c['claim_text'])[:40]} | {cell(str(c.get('observed')))[:40]} | "
+                     f"`{cell(str(c.get('command', '')))[:60]}` | "
+                     f"{cell('、'.join(c.get('risk_ids') or []) or '—')} |")
+        if ev_extra:
+            L += ["", "**验真发现但未进入风险点清单的条目**（文本启发式抓不到、靠领域知识抓到的）：", ""]
+            for c in ev_extra:
+                L.append(f"- **{c['id']} {c['severity']} {c['verdict']}**（{c['visibility']}）"
+                         f"{c['title']}：{c.get('why') or c.get('observed')}")
+        L.append("")
+
+        hot = [c for c in claims if c["visibility"] in ("当场可判", "追问可判")]
+        hot.sort(key=lambda c: (SEV_RANK.get(c["severity"], 9), c["id"]))
+        L += ["---", "", "## 四、面试前必做（只收「当场可判」「追问可判」）", ""]
+        if not hot:
+            L.append("本次验真没有发现当场可判 / 追问可判的问题。")
+        for c in hot:
+            L += [f"**{c['id']} {c['severity']} {c['title']}**（{c['visibility']}／{c['verdict']}）", "",
+                  f"- 简历原话：{cell(c['claim_text'])}",
+                  f"- 实测：{cell(str(c.get('observed')))}",
+                  f"- 动作：{c['interview_action']}"]
+            if c.get("why"):
+                L.append(f"- 说明：{cell(c['why'])}")
+            if c.get("command"):
+                L.append(f"- 自查命令：`{c['command']}`")
+            L.append("")
+        L += ["> **不在必做清单里的（需材料才可判 / 不可判）**："
+              + ("、".join(c["id"] for c in claims
+                           if c["visibility"] in ("需材料才可判", "不可判")) or "无")
+              + "——面试官看不到这些，**建议改成真实数字即可，不必为它们准备话术**。", ""]
 
     total = len(risks)
     covered = sum(1 for r in risks if probes.get(r["id"]))
-    L += ["---", "", "## 三、闭环校验", "",
+    L += ["---", "", "## 五、闭环校验", "",
           f"- 风险点总数：{total}",
           f"- 已在对话中被追问：{covered} / {total}"
           + ("（全部覆盖）" if covered == total else "（**存在未被追问的条目**）"),
           f"- 改写建议已通过「不新增数字」校验：{len(provided)} 条来自评审 agent，"
-          f"{total - len(provided)} 条来自确定性模板", ""]
+          f"{total - len(provided)} 条来自确定性模板",
+          f"- 代码验真：{'已运行，结论 ' + str(len(claims)) + ' 条' if claims else '未运行（P4 未提供 evidence.json）'}", ""]
     out = "\n".join(L) + "\n"
     if args.strict and covered != total:
         die(f"编号引用闭环未达成：{total - covered} 条风险点没有被追问过")
@@ -339,6 +432,7 @@ def main(argv=None):
     p.add_argument("--rewrites", default=os.path.join("judgments", "rewrites.json"))
     p.add_argument("--resume-label", dest="resume_label", default="（未提供）")
     p.add_argument("--evidence-status", dest="evidence_status", default="未验真（P4 未运行）")
+    p.add_argument("--evidence", default="out/evidence.json", help="P4 验真清单（可选）")
     p.add_argument("--strict", action="store_true", help="闭环未达成时返回非 0")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)

@@ -64,6 +64,11 @@ python pipeline/transcript.py --root . --resume-label <简历>     # 01 逐字�
 python pipeline/export_resume.py --root . --trim-long-items 900  # 05 HTML（改动说明打印隐藏）
 python pipeline/export_resume.py --root . --pdf --confirm        # 05 PDF（人工闸门）
 python pipeline/verify_links.py --root . --strict                # 验收 A5
+
+# 8. P4 验真：只读交叉核对简历声明 × 代码/git（需用户提供仓库路径与 git 作者名）
+python pipeline/verify_evidence.py --root . --resume out/real/resume.json \
+      --repo <别名>=<仓库路径> --author <git 作者> --out out/evidence.json
+python pipeline/report.py --root . --only 04 --evidence out/evidence.json  # 04 带代码验真列
 ```
 
 > **PDF 导出必须在沙箱外运行**：Chromium 内核需要**命名管道**做进程间通信，
@@ -84,6 +89,10 @@ python pipeline/verify_links.py --root . --strict                # 验收 A5
 ## 硬约束
 
 - **不编造**：未在输入中出现的事实不得写入任何产物。
+- **验证优先于判断**：能用 git / 代码核对的，先核对再下结论；核对结果只读，不改动用户仓库。
+- **严重度看面试可见性，不看能不能查到**：代码里查不到（提交数、测试数、某个机制名存在与否）
+  属于"需材料才可判"，只能建议改成真实数字，**不得称为造假**；只有面试官当场就能发现的
+  领域常识错误（如"Oracle 侧用 binlog"）才给最高严重度。**判编造的唯一入口是面试实录**。
 - **薪资只给区间** + 推理链 + 依据声明，禁止输出无出处的市场数据。
 - **评分可复现**：同输入两次运行加权总分偏差 ≤ 0.3。
 - **合规**：代码与业务数据不外传，产物默认落本地工作区。

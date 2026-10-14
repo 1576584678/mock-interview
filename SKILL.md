@@ -52,7 +52,25 @@ python pipeline/orchestrate.py commit --round N --root . \
 
 # 5. DoD 校验：JD 硬性维度全覆盖 + 每条风险点至少被追问 1 次，未达标返回 1
 python pipeline/orchestrate.py check --root .
+
+# 6. P3 评估：评审 agent 把判分写进 judgments/round-N.json，脚本校验并聚合
+python pipeline/score.py run --root . --judgments judgments --out out/scorecard.json
+python pipeline/score.py compare --a out/scorecard.json --b out/scorecard-b.json  # 验收 A1
+python pipeline/salary.py --root . --out out/salary.json
+python pipeline/report.py --root . --only all --strict          # 02 / 03 / 04
+
+# 7. P5 产出：补齐五件套 + 编号闭环校验
+python pipeline/transcript.py --root . --resume-label <简历>     # 01 逐字稿
+python pipeline/export_resume.py --root . --trim-long-items 900  # 05 HTML（改动说明打印隐藏）
+python pipeline/export_resume.py --root . --pdf --confirm        # 05 PDF（人工闸门）
+python pipeline/verify_links.py --root . --strict                # 验收 A5
 ```
+
+> **PDF 导出必须在沙箱外运行**：Chromium 内核需要**命名管道**做进程间通信，
+> 而 DSH 沙箱在受限模式下禁止创建命名管道（表现为
+> `FATAL:mojo\platform_channel.cc: Check failed: 拒绝访问`）。
+> 因此 `--pdf` 请在有完整权限的会话里执行；沙箱内会明确提示并降级为
+> "用浏览器打开 `05_改后简历.html` → 打印 → 另存为 PDF"（打印时改动说明自动隐藏）。
 
 要点：
 - 编排脚本**不调用模型**——它只渲染指令、校验契约、落盘状态；模型调用由宿主 agent 完成。

@@ -1,8 +1,9 @@
 # pipeline · 脚本接口约定
 
-> 本目录实现进度：**P1、P2、P3 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
-> `parse_jd.py` / `risks.py` / `orchestrate.py` / `score.py` / `salary.py` / `report.py`）；
-> P4（`verify_evidence.py`）与 P5（`export_resume.py`）仍待开发。
+> 本目录实现进度：**P1、P2、P3、P5 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
+> `parse_jd.py` / `risks.py` / `orchestrate.py` / `score.py` / `salary.py` / `report.py` /
+> `transcript.py` / `export_resume.py` / `verify_links.py`）；
+> P4（`verify_evidence.py`）仍待开发。
 > 所有脚本遵循同一约定：**读 JSON / 写 JSON，参数走命令行，不依赖第三方库（优先）。**
 
 ## 运行方式
@@ -26,7 +27,13 @@ python pipeline/score.py compare --a out/scorecard.json --b out/scorecard-b.json
 python pipeline/salary.py --root . --out out/salary.json
 python pipeline/report.py --root . --only all --strict   # 02/03/04 三件套
 
-python tests/run_tests.py                     # 96 项回归测试
+# P5 产出层（五件套补齐 + 编号闭环校验）
+python pipeline/transcript.py --root . --resume-label 简历.pdf      # 01
+python pipeline/export_resume.py --root . --trim-long-items 900     # 05 HTML
+python pipeline/export_resume.py --root . --pdf --confirm           # 05 PDF（人工闸门）
+python pipeline/verify_links.py --root . --strict                   # 验收 A5
+
+python tests/run_tests.py                     # 125 项回归测试
 ```
 
 中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
@@ -44,8 +51,11 @@ python tests/run_tests.py                     # 96 项回归测试
 | `score.py` | P3 | ✅ | rubric 驱动评分：维度/权重/雷区/硬性规则全部从 rubric 解析并强校验；无原话不扣分；A1 漂移对比 |
 | `salary.py` | P3 | ✅ | 薪资区间 + 推理链 + 依据声明；禁止无出处行情数据（否定感知守卫）|
 | `report.py` | P3 | ✅ | 渲染 `02/03/04` 三件套；改写建议"不新增数字"自动校验；编号闭环检查 |
+| `transcript.py` | P5 | ✅ | 渲染 `01_面试对话实录.md`：逐字稿 + 追问链层次 + 标记 + 反问 |
+| `export_resume.py` | P5 | ✅ | 渲染 `05_改后简历.html`：成对替换（不新增数字）、改动说明打印隐藏、PDF 人工闸门 |
+| `verify_links.py` | P5 | ✅ | 验收 A5：五件套编号引用闭环（无悬空 / 无孤岛 / 全部进 04） |
 | `verify_evidence.py` | P4 | ⬜ | 待开发（护城河） |
-| `export_resume.py` | P5 | ⬜ | 待开发 |
+| `export_resume.py`（P4 复核） | P4 | ⬜ | 待开发 |
 
 ## 约定
 

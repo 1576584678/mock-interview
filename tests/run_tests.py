@@ -34,6 +34,9 @@ import risks as risks_mod                 # noqa: E402
 import salary as salary_mod               # noqa: E402
 import score as score_mod                 # noqa: E402
 import report as report_mod               # noqa: E402
+import transcript as transcript_mod       # noqa: E402
+import export_resume as export_mod        # noqa: E402
+import verify_links as links_mod          # noqa: E402
 
 RESUME = os.path.join(HERE, "fixtures", "sample_resume.md")
 JD = os.path.join(HERE, "fixtures", "sample_jd.txt")
@@ -480,6 +483,157 @@ def main():
     except SystemExit:
         ok_rw = False
     check("不含新事实的改写建议 → 接受", ok_rw)
+
+    # ---------------------------------------------------------------- P5
+    print("\n=== 13. P5 实录渲染（01） ===")
+    p5 = os.path.join(HERE, "tmp", "p5")
+    shutil.rmtree(p5, ignore_errors=True)
+    os.makedirs(os.path.join(p5, "rounds"), exist_ok=True)
+    r1 = {
+        "round": 1, "theme": "开场与动机", "ts": "2026-01-01 10:00:00",
+        "items": [{
+            "qid": "Q1", "dimension": "开场与动机",
+            "question": "介绍一下你自己。", "answer": "我做过 SSO 双会话。",
+            "targets_risk": ["R-01"],
+            "expected_signals": ["时间线连续"],
+            "markers": ["🟡 示弱"],
+            "self_flags": ["本回答依据简历的 XX 段，空窗期无简历依据已显式示弱"],
+            "confidence": "基本确定", "duration_seconds": 90,
+            "followups": [{"question": "空窗期产出？", "answer": "拿不出可审计的交付物。"}],
+        }],
+        "candidate_questions": ["团队怎么分工？"],
+    }
+    r2 = dict(r1, round=2, theme="中间件",
+              items=[dict(r1["items"][0], qid="Q2", targets_risk=["R-02"])])
+    write_json(os.path.join(p5, "rounds", "round-1.json"), r1)
+    # 中间产物：格式不同，混进来会把轮次/题数算错
+    write_json(os.path.join(p5, "rounds", "round-1.answers.json"), {"answers": [{"qid": "Q1"}]})
+    write_json(os.path.join(p5, "rounds", "round-1.interviewer.json"), {"questions": []})
+    write_json(os.path.join(p5, "rounds", "round-2.json"), r2)
+    write_json(os.path.join(p5, "rounds", "state.json"),
+               {"position": "后端工程师", "probed": {"R-01": True, "R-02": True},
+                "risks": [{"id": "R-01"}, {"id": "R-02"}], "calls": 2,
+                "started_at": "2026-01-01T10:00:00", "finished_at": "2026-01-01T10:20:00"})
+    with contextlib.redirect_stdout(io.StringIO()):
+        tpath = transcript_mod.main(["--root", p5, "--resume-label", "样例.md", "--quiet"])
+    t01 = open(tpath, encoding="utf-8").read()
+    check("只认 round-N.json（不被 answers/interviewer 污染）",
+          "**轮次**：2 轮" in t01 and "**题目数**：2" in t01)
+    check("面试官题面逐字保留", "介绍一下你自己。" in t01 and "空窗期产出？" in t01)
+    check("候选人作答逐字保留", "拿不出可审计的交付物。" in t01)
+    check("短标记进入作答行", "🟡 示弱" in t01)
+    check("自评依据长文本单独成段（不进标记统计）",
+          "候选人自评依据" in t01 and "本回答依据简历的 XX 段" in t01)
+    check("标记统计只剩短标记", "标记分布 | 🟡 示弱×2" in t01.replace("｜", "|"))
+    check("带 [R-xx] 编号", "[R-01]" in t01 and "[R-02]" in t01)
+    check("含候选人反问环节", "候选人反问" in t01 and "团队怎么分工？" in t01)
+    check("含追问链层次", "**追问 1（面试官）**" in t01)
+
+    print("\n=== 14. P5 简历导出（05） ===")
+    sample_resume = {
+        "basic": {"name": "张三", "title": "后端开发工程师", "years": "10 年",
+                  "phone": "13800000000", "email": "z@example.com"},
+        "summary": ["后端架构：做过 12 个系统接入", "数据一致性：同步准确率达 99.98%"],
+        "skills": [{"category": "数据库", "items": ["熟悉分库分表、索引优化"]}],
+        "experiences": [{"company": "某公司", "title": "工程师", "start": "2024.01",
+                         "end": "至今", "raw": "2024.01 - 至今", "stack": ["Java"],
+                         "highlights": ["负责企业级平台的", "跨系统同步模块。",
+                                        "参与冷热分离改造。"]}],
+        "projects": [{"name": "同步平台", "period": "2024.01 - 至今", "role": "",
+                      "stack": ["Java"],
+                      "highlights": ["负责企业级平台的", "跨系统同步模块。"]}],
+        "education": ["某大学 本科"],
+        "timeline_gaps": [{"from": "2023.01", "to": "2023.04", "months": 3}],
+    }
+    write_json(os.path.join(p5, "out", "real", "resume.json"), sample_resume) \
+        if os.makedirs(os.path.join(p5, "out", "real"), exist_ok=True) is None else None
+    write_json(os.path.join(p5, "out", "risks.json"), {
+        "risks": [{"id": "R-01", "type": "口径缺失", "severity": "🟠",
+                   "why": "只有数字没有口径"},
+                  {"id": "R-02", "type": "能力缺口", "severity": "🟡",
+                   "why": "无分库分表落地"}]})
+    write_json(os.path.join(p5, "judgments", "fixes.json"), {
+        "fixes": [{"risk_id": "R-01", "replace_from": "同步准确率达 99.98%",
+                   "replace_to": "同步准确率达 99.98%（口径：一致行数 ÷ 比对总行数）",
+                   "note": "补口径"},
+                  {"risk_id": "R-09", "replace_from": "这句话原文里不存在",
+                   "replace_to": "改不掉", "note": "应当被跳过"}],
+        "unfixable": [{"risk_id": "R-02", "reason": "能力缺口不写进简历"}]})
+    with contextlib.redirect_stdout(io.StringIO()):
+        summ = export_mod.main(["--root", p5, "--quiet"])
+    h05 = open(summ["html"], encoding="utf-8").read()
+    check("05 无未渲染占位符", "{{" not in h05)
+    check("05 成对替换生效", "（口径：一致行数 ÷ 比对总行数）" in h05)
+    check("05 未命中的替换被跳过而非报错",
+          any("找不到" in s["reason"] for s in summ["skipped"]), summ["skipped"])
+    check("05 改动说明引用风险点编号", "[R-01]" in h05 and "[R-02]" in h05)
+    check("05 打印时隐藏改动说明",
+          ".changelog{display:none!important;" in h05.replace(" ", ""))
+    check("05 含 A4 打印规则", "size:A4" in h05)
+    check("05 含分页保护规则",
+          "page-break-after:avoid" in h05 and "page-break-inside:avoid" in h05)
+    check("05 去重：与工作经历重复的项目被合并",
+          "同步平台" not in h05.split('<h2 class="sec">项目经历</h2>')[-1]
+          if '<h2 class="sec">项目经历</h2>' in h05 else True)
+    check("解析碎片被合并成完整句", "负责企业级平台的跨系统同步模块。" in h05)
+    check("时间线占位符不含『改动说明』字样（避免 PDF 泄漏误判）",
+          "本次改动说明" not in h05.split('<div class="page">')[-1])
+
+    # 新增数字必须整份拒绝
+    bad = json.loads(json.dumps(sample_resume, ensure_ascii=False))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            export_mod.apply_fixes(bad, [{"risk_id": "R-01", "replace_from": "12 个系统接入",
+                                          "replace_to": "34 个系统接入"}], Log(quiet=True))
+        rejected = False
+    except SystemExit:
+        rejected = True
+    check("replace_to 引入新数字 → 整份拒绝", rejected)
+
+    # PDF 人工闸门
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            export_mod.main(["--root", p5, "--pdf", "--quiet"])
+        gated = False
+    except SystemExit:
+        gated = True
+    check("--pdf 未加 --confirm → 拒绝导出（人工闸门）", gated)
+
+    # 去重与截断
+    check("重叠度计算：同文 1.0 / 无关 0.0",
+          export_mod.overlap_ratio("abcdefghijkl", "abcdefghijkl") == 1.0
+          and export_mod.overlap_ratio("abcdefghijkl", "012345678901") == 0.0)
+    dup = {"experiences": [{"company": "A", "highlights": ["负责企业级平台跨系统同步模块改造"]}],
+           "projects": [{"name": "同内容", "highlights": ["负责企业级平台跨系统同步模块改造"]}]}
+    dropped = export_mod.drop_duplicate_projects(dup, Log(quiet=True))
+    check("高重叠项目被合并", len(dropped) == 1 and len(dup["projects"]) == 0, dropped)
+    tl = {"experiences": [{"company": "A", "highlights": ["字" * 50, "字" * 50]}], "projects": []}
+    tr = export_mod.trim_long_items(tl, 60, Log(quiet=True))
+    check("截断留下可见标记且被记录",
+          len(tr) == 1 and "已截断" in tl["experiences"][0]["highlights"][-1], tr)
+
+    print("\n=== 15. P5 五件套闭环校验（A5） ===")
+    for name, text in (("01_面试对话实录.md", "R-01 R-02"),
+                       ("02_复盘报告.md", "R-01 R-02"),
+                       ("03_薪资建议.md", "R-01"),
+                       ("04_简历风险点.md", "R-01 R-02"),
+                       ("05_改后简历.html", "R-01 R-02")):
+        open(os.path.join(p5, name), "w", encoding="utf-8").write(text)
+    found = links_mod.scan(p5)
+    res = links_mod.check(p5, ["R-01", "R-02"], found, strict=True)
+    check("五件套齐全 + 全覆盖 → A5 通过", res["ok"], res)
+    check("矩阵识别每个产物的引用", found["03_薪资建议.md"] == ["R-01"], found)
+    # 悬空编号
+    open(os.path.join(p5, "02_复盘报告.md"), "w", encoding="utf-8").write("R-01 R-02 R-99")
+    res2 = links_mod.check(p5, ["R-01", "R-02"], links_mod.scan(p5), strict=True)
+    check("引用不存在的编号 → 悬空被识别", res2["dangling"] == ["R-99"] and not res2["ok"], res2)
+    # 孤岛 + 未进 04：R-02 从 04 里去掉
+    for name, text in (("02_复盘报告.md", "R-01"), ("01_面试对话实录.md", ""),
+                       ("05_改后简历.html", ""), ("04_简历风险点.md", "R-01")):
+        open(os.path.join(p5, name), "w", encoding="utf-8").write(text)
+    res3 = links_mod.check(p5, ["R-01", "R-02"], links_mod.scan(p5), strict=True)
+    check("只出现在 1 个产物 → 判为孤岛", "R-02" in res3["orphan"], res3["orphan"])
+    check("缺失的编号被识别为未进 04", "R-02" in res3["not_in_04"], res3["not_in_04"])
 
     print(f"\n===== 结果: {len(PASS)} 通过 / {len(FAIL)} 失败 =====")
     if FAIL:

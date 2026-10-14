@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PAGE_TITLE}}</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --sub:#4a4a4a; --line:#d8d8d8; --accent:#1f4e79; --soft:#f5f7fa;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:28px 18px 60px;
+    background:#eceff3;
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Source Han Sans SC",system-ui,-apple-system,sans-serif;
+    color:var(--ink); font-size:14px; line-height:1.62;
+  }
+  .page{
+    max-width:840px; margin:0 auto; background:#fff; padding:38px 44px 44px;
+    box-shadow:0 2px 14px rgba(0,0,0,.10);
+  }
+
+  /* ---------- 改动说明（打印时自动隐藏，见 @media print） ---------- */
+  .changelog{
+    max-width:840px; margin:0 auto 18px; background:#fffbe8; border:1px solid #e8d48a;
+    border-radius:6px; padding:18px 22px; font-size:13px; line-height:1.7;
+  }
+  .changelog h2{margin:0 0 10px; font-size:15px; color:#8a6a00;}
+  .changelog h3{margin:14px 0 6px; font-size:13.5px; color:#8a6a00;}
+  .changelog ol{margin:0; padding-left:20px;}
+  .changelog li{margin-bottom:5px;}
+  .tag{display:inline-block; font-size:11.5px; padding:0 6px; border-radius:3px; margin-right:6px; vertical-align:1px;}
+  .t-fix{background:#ffe0e0; color:#a52020;}
+  .t-add{background:#e0f0e0; color:#1d6b2a;}
+  .t-pos{background:#e0e8ff; color:#1f3f9e;}
+  .t-fmt{background:#eee; color:#555;}
+  .changelog .note{color:#7a6a30; margin-top:12px; padding-top:10px; border-top:1px dashed #e0cf9a;}
+
+  /* ---------- 头部 ---------- */
+  .hd{border-bottom:2px solid var(--accent); padding-bottom:14px; margin-bottom:18px;}
+  .hd h1{margin:0 0 4px; font-size:26px; letter-spacing:1px;}
+  .hd .title{font-size:14.5px; color:var(--accent); font-weight:700; margin-bottom:8px;}
+  .hd .meta{font-size:13px; color:var(--sub);}
+  .hd .meta span{margin-right:14px; white-space:nowrap;}
+
+  /* ---------- 章节 ---------- */
+  h2.sec{
+    font-size:15.5px; margin:22px 0 10px; padding:3px 0 3px 10px;
+    border-left:4px solid var(--accent); background:var(--soft); color:#12304d;
+  }
+  h3.job{font-size:14.5px; margin:16px 0 2px;}
+  .jobline{font-size:12.8px; color:var(--sub); margin-bottom:6px;}
+  .jobline b{color:var(--ink);}
+  .stack{font-size:12.5px; color:#5a6b7a; margin:2px 0 6px;}
+  ul{margin:4px 0 8px; padding-left:19px;}
+  li{margin-bottom:4px;}
+  li::marker{color:var(--accent);}
+  b,strong{color:#000;}
+  .num{font-weight:700; color:#a5300f;}
+  em{font-style:normal; background:#eef4fb; padding:0 3px; border-radius:2px;}
+
+  /* 核心优势 */
+  .adv{margin:0; padding:0; list-style:none;}
+  .adv li{position:relative; padding-left:16px; margin-bottom:7px;}
+  .adv li::before{content:""; position:absolute; left:0; top:8px; width:6px; height:6px; background:var(--accent); border-radius:50%;}
+  .adv b{color:#12304d;}
+
+  /* 技能表 */
+  table.skills{width:100%; border-collapse:collapse; font-size:13.2px;}
+  table.skills td{padding:5px 8px; border-bottom:1px solid #eee; vertical-align:top;}
+  table.skills td:first-child{width:104px; color:#12304d; font-weight:700; white-space:nowrap;}
+
+  /* 时间线 */
+  .tl{font-size:13px; color:var(--sub); line-height:1.9;}
+  .tl b{color:var(--ink);}
+
+  .unconfirmed{color:#8a6a00; font-size:12.5px;}
+
+  @media print{
+    @page{ size:A4; margin:12mm 11mm; }
+    body{background:#fff; padding:0; font-size:10.4pt; line-height:1.5;}
+    .page{max-width:none; padding:0; box-shadow:none;}
+    .changelog{display:none !important;}
+    h2.sec{background:#f2f5f8; -webkit-print-color-adjust:exact; print-color-adjust:exact; margin:13px 0 7px; page-break-after:avoid;}
+    .hd{border-bottom-width:2px; page-break-after:avoid;}
+    li{page-break-inside:avoid;}
+    h3.job{page-break-after:avoid;}
+    .jobline,.stack{page-break-after:avoid; page-break-inside:avoid;}
+    .adv li{page-break-inside:avoid;}
+    p,li,div{orphans:2; widows:2;}
+    table.skills,table.skills tr{page-break-inside:avoid;}
+    .avoid-break{page-break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 改动说明（打印 / 导出 PDF 时自动隐藏，不进入正式简历） ============ -->
+<section class="changelog">
+{{CHANGELOG}}
+</section>
+
+<!-- ============ 正式简历 ============ -->
+<div class="page">
+
+  <header class="hd">
+    <h1>{{NAME}}</h1>
+    <div class="title">{{HEADLINE}}</div>
+    <div class="meta">
+{{META}}
+    </div>
+  </header>
+
+{{BODY}}
+
+</div>
+</body>
+</html>

@@ -2,6 +2,13 @@
 .mock-interview/
 out/
 rounds/
+judgments/
+01_面试对话实录.md
+02_复盘报告.md
+03_薪资建议.md
+04_简历风险点.md
+05_改后简历.html
+05_改后简历.pdf
 *.local.json
 tests/tmp/
 tests/last_run.txt

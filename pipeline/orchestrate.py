@@ -33,7 +33,7 @@ import os
 import re
 import sys
 
-from common import Log, as_text, die, read_text, write_text, write_json, now
+from common import Log, as_text, die, read_text, render, write_text, write_json, now
 from risks import seed_risks
 
 QUESTIONS_PER_ROUND = 5
@@ -462,6 +462,10 @@ def cmd_commit(args):
     if args.round >= st["max_rounds"]:
         st["finished_at"] = datetime.datetime.now().isoformat(timespec="seconds")
     save_state(root, st)
+    # 幂等重写风险清单：P3 评分器按编号校验，缺了它整张评分卡算不出来。
+    # （踩过的坑：早期版本只在 init 时写这一份，真实演练跑完后才补上，
+    #   导致 out/risks.json 缺失、评分器把所有 risk_id 判成非法编号。）
+    write_json(os.path.join(root, "out", "risks.json"), st["risks"])
     log.info(f"第 {args.round} 轮落盘：{len(items)} 题，追问 "
              f"{sum(len(i['followups']) for i in items)} 层，调用累计 {st['calls']} 次")
 

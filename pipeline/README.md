@@ -1,7 +1,7 @@
 # pipeline · 脚本接口约定
 
-> 本目录实现进度：**P1、P2 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
-> `parse_jd.py` / `risks.py` / `orchestrate.py`）；
+> 本目录实现进度：**P1、P2、P3 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
+> `parse_jd.py` / `risks.py` / `orchestrate.py` / `score.py` / `salary.py` / `report.py`）；
 > P4（`verify_evidence.py`）与 P5（`export_resume.py`）仍待开发。
 > 所有脚本遵循同一约定：**读 JSON / 写 JSON，参数走命令行，不依赖第三方库（优先）。**
 
@@ -20,7 +20,13 @@ python pipeline/orchestrate.py commit            --round 1 --root . \
       --questions rounds/round-1.interviewer.json --answers rounds/round-1.answers.json
 python pipeline/orchestrate.py check             --root .   # DoD 覆盖校验，未达标返回 1
 
-python tests/run_tests.py                     # 49 项回归测试
+# P3 评估（评审 agent 把判分写进 judgments/，脚本负责校验与聚合）
+python pipeline/score.py run     --root . --judgments judgments --out out/scorecard.json
+python pipeline/score.py compare --a out/scorecard.json --b out/scorecard-b.json   # 验收 A1
+python pipeline/salary.py --root . --out out/salary.json
+python pipeline/report.py --root . --only all --strict   # 02/03/04 三件套
+
+python tests/run_tests.py                     # 96 项回归测试
 ```
 
 中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
@@ -35,6 +41,9 @@ python tests/run_tests.py                     # 49 项回归测试
 | `parse_jd.py` | P1 | ✅ | 章节化归类（要求/职责/加分，零丢失）、薪资、维度、隐藏痛点 |
 | `risks.py` | P2 | ✅ | 风险点种子（编号 R-01…，P2 追问目标与 P3 报告共用）|
 | `orchestrate.py` | P2 | ✅ | 轮次计划、提示词注入、契约校验、状态落盘、DoD 校验 |
+| `score.py` | P3 | ✅ | rubric 驱动评分：维度/权重/雷区/硬性规则全部从 rubric 解析并强校验；无原话不扣分；A1 漂移对比 |
+| `salary.py` | P3 | ✅ | 薪资区间 + 推理链 + 依据声明；禁止无出处行情数据（否定感知守卫）|
+| `report.py` | P3 | ✅ | 渲染 `02/03/04` 三件套；改写建议"不新增数字"自动校验；编号闭环检查 |
 | `verify_evidence.py` | P4 | ⬜ | 待开发（护城河） |
 | `export_resume.py` | P5 | ⬜ | 待开发 |
 

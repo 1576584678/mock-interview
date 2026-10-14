@@ -31,6 +31,9 @@ from parse_resume import parse            # noqa: E402
 from common import Log, write_json        # noqa: E402
 import orchestrate as orch                # noqa: E402
 import risks as risks_mod                 # noqa: E402
+import salary as salary_mod               # noqa: E402
+import score as score_mod                 # noqa: E402
+import report as report_mod               # noqa: E402
 
 RESUME = os.path.join(HERE, "fixtures", "sample_resume.md")
 JD = os.path.join(HERE, "fixtures", "sample_jd.txt")
@@ -251,6 +254,232 @@ def main():
         except SystemExit as e:
             passed = e.code == 0
     check("全部覆盖后 check 通过", passed)
+
+    print("\n=== 10. P3 评分器（rubric 驱动）===")
+    rubric = score_mod.parse_rubric(os.path.join(ROOT, "rubric", "scoring.md"))
+    flagdoc = score_mod.parse_flags(os.path.join(ROOT, "rubric", "red_flags.md"))
+    dims, codes = rubric["dims"], flagdoc["flags"]
+    check("rubric 六个维度解析完整",
+          set(dims) == {"正确性", "深度", "一致性", "匹配度", "表达", "风险控制"}, dims)
+    check("rubric 权重合计 1.00", abs(sum(dims.values()) - 1) < 1e-9, sum(dims.values()))
+    check("通过概率 5 档", len(rubric["tiers"]) == 5, len(rubric["tiers"]))
+    check("雷区编号 27 条", len(codes) == 27, len(codes))
+    check("档位映射正确",
+          score_mod.pass_probability(4.4, rubric["tiers"]) == "强推荐"
+          and score_mod.pass_probability(2.0, rubric["tiers"]) == "明确不过")
+
+    transcript = {"round": 1, "items": [
+        {"qid": "Q1", "dimension": "JVM", "question": "讲讲 JVM 调优",
+         "answer": "这块我没有生产落地经验，我的理解是先看 GC 日志判断是年轻代还是老年代停顿，"
+                   "再决定要不要调参；没有真实压测数据之前我不会给具体数字。",
+         "markers": ["🟡 示弱"], "targets_risk": ["R-01"],
+         "followups": [{"question": "具体参数？", "answer": "参数记不准，不编。"}]},
+        {"qid": "Q2", "dimension": "框架", "question": "熔断怎么配的",
+         "answer": "熔断按承运商单独配置。", "markers": [], "targets_risk": [], "followups": []},
+    ]}
+    judg = {"round": 1, "items": [
+        {"qid": "Q1", "band": 4, "dims": {k: 4 for k in dims},
+         "deductions": [{"reason": "未给具体参数", "quote": "参数记不准，不编",
+                         "red_flag": "E-02"}],
+         "improvement": "准备一页 GC 调优话术"},
+        {"qid": "Q2", "band": 4, "dims": {k: 4 for k in dims},
+         "deductions": [{"reason": "作用域说错", "quote": "熔断按承运商单独配置",
+                         "red_flag": "M-04"}],
+         "improvement": "核对熔断挂载层级"},
+    ]}
+    rows = score_mod.score_round(transcript, judg, dims, codes, set(), rubric["rules"])
+    q1 = next(r for r in rows if r["qid"] == "Q1")
+    q2 = next(r for r in rows if r["qid"] == "Q2")
+    check("示弱+给推理 → +0.5", q1["score"] == 4.5, q1["score"])
+    check("M 类张冠李戴 → 最高 2 分", q2["score"] == 2.0, q2["score"])
+
+    def mut(**kw):
+        j = json.loads(json.dumps(judg))
+        j["items"][0].update(kw)
+        return j
+
+    def rejects(j, label, risk_ids=None):
+        try:
+            score_mod.score_round(transcript, j, dims, codes, risk_ids or set(),
+                                  rubric["rules"])
+            return False
+        except SystemExit:
+            return True
+
+    check("rubric 第 3 节硬性规则可解析", set(rubric["rules"]) ==
+          {"编造", "常识错误", "矛盾", "不确定", "答不出"}, set(rubric["rules"]))
+    hr_mut = mut(deductions=[], hard_rules=["矛盾"])
+    q1_hr = next(r for r in score_mod.score_round(transcript, hr_mut, dims, codes,
+                                                  set(), rubric["rules"]) if r["qid"] == "Q1")
+    check("与自己简历矛盾 → 扣 1 分", q1_hr["score"] == 3.5, q1_hr["score"])
+    check("rubric 外的硬性规则名 → 拒绝",
+          rejects(mut(hard_rules=["感觉不行"]), "规则名"))
+
+    check("引用原话改字 → 拒绝计分",
+          rejects(mut(deductions=[{"reason": "x", "quote": "参数记不清楚"}]), "改字"))
+    check("编造编号（F-01）→ 该题 1 分",
+          next(r for r in score_mod.score_round(
+              transcript, mut(deductions=[{"reason": "不存在", "quote": "参数记不准，不编",
+                                           "red_flag": "F-01"}]), dims, codes, set(),
+              rubric["rules"])
+               if r["qid"] == "Q1")["score"] == 1.0)
+    check("rubric 外维度 → 拒绝",
+          rejects(mut(dims={"正确性": 4}), "缺维度"))
+    check("非 0.5 步长维度分 → 拒绝",
+          rejects(mut(dims={**{k: 4 for k in dims}, "深度": 3.7}), "步长"))
+    check("档位给小数 → 拒绝", rejects(mut(band=3.5), "档位"))
+    check("rubric 外雷区编号 → 拒绝",
+          rejects(mut(deductions=[{"reason": "x", "quote": "参数记不准，不编",
+                                   "red_flag": "X-99"}]), "编号"))
+    check("不存在的风险点编号 → 拒绝",
+          rejects(mut(deductions=[{"reason": "x", "quote": "参数记不准，不编",
+                                   "risk_id": "R-99"}]), "风险点"))
+    check("扣分不引用原话 → 拒绝",
+          rejects(mut(deductions=[{"reason": "感觉不行"}]), "无原话"))
+
+    agg = score_mod.aggregate(rows, dims, rubric["tiers"], codes, [1])
+    expect = sum(agg["dimension_scores"][k] * w for k, w in dims.items())
+    check("加权总分 = Σ(维度均分 × 权重)",
+          abs(agg["weighted_total"] - round(expect, 1)) <= 0.05,
+          (agg["weighted_total"], round(expect, 1)))
+    check("档位分布被统计", sum(agg["band_distribution"].values()) == 2, agg["band_distribution"])
+
+    print("\n=== 11. P3 评分卡落盘与 A1 对比 ===")
+    sc_res = parse(open(RESUME, encoding="utf-8").read(), RESUME, "md", [])
+    sc_jd = parse_jd(open(JD, encoding="utf-8").read())
+    p3 = os.path.join(HERE, "tmp", "p3root")
+    shutil.rmtree(p3, ignore_errors=True)
+    os.makedirs(os.path.join(p3, "rounds"), exist_ok=True)
+    os.makedirs(os.path.join(p3, "out", "real"), exist_ok=True)
+    os.makedirs(os.path.join(p3, "judgments"), exist_ok=True)
+    write_json(os.path.join(p3, "out", "real", "resume.json"), sc_res)
+    write_json(os.path.join(p3, "out", "real", "jd.json"), sc_jd)
+    p3_risks = risks_mod.seed_risks(sc_res, sc_jd)
+    write_json(os.path.join(p3, "out", "risks.json"), p3_risks)
+    write_json(os.path.join(p3, "rounds", "round-1.json"), transcript)
+    write_json(os.path.join(p3, "judgments", "round-1.json"), judg)
+
+    scpath = os.path.join(p3, "out", "scorecard.json")
+    with contextlib.redirect_stdout(io.StringIO()):
+        score_mod.main(["run", "--root", p3, "--out", scpath,
+                        "--rubric", os.path.join(ROOT, "rubric", "scoring.md"),
+                        "--red-flags", os.path.join(ROOT, "rubric", "red_flags.md")])
+    check("评分卡 JSON 落盘", os.path.exists(scpath))
+    check("评分表 CSV 落盘", os.path.exists(os.path.join(p3, "out", "scorecard.csv")))
+    card = json.load(open(scpath, encoding="utf-8"))
+    check("评分卡带 rubric 版本指纹", bool(card["meta"]["rubric_sha1"]))
+    check("评分卡记录逐题明细", len(card["rows"]) == 2)
+
+    # A1：同输入两次运行 → 偏差 0
+    b_path = os.path.join(p3, "out", "scorecard-b.json")
+    shutil.copyfile(scpath, b_path)
+    with contextlib.redirect_stdout(io.StringIO()):
+        d = score_mod.cmd_compare(argparse.Namespace(a=scpath, b=b_path, tolerance=0.3))
+    check("同输入两次运行偏差 0（A1）", d == 0, d)
+
+    # A1：超阈值必须失败
+    bad = json.load(open(scpath, encoding="utf-8"))
+    bad["summary"]["weighted_total"] = round(bad["summary"]["weighted_total"] - 0.6, 1)
+    write_json(b_path, bad)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            score_mod.cmd_compare(argparse.Namespace(a=scpath, b=b_path, tolerance=0.3))
+        exceeded = False
+    except SystemExit as e:
+        exceeded = e.code != 0
+    check("偏差超 0.3 → 判 A1 失败", exceeded)
+
+    print("\n=== 12. P3 薪资与报告 ===")
+    sal = salary_mod.build(sc_jd, card, sc_res, p3_risks)
+    lo, hi = sal["jd_range"]
+    rec = sal["recommended"]
+    check("薪资只给区间（3 个数）", set(rec) == {"low", "mid", "high"}, set(rec))
+    check("薪资落在 JD 区间内", lo <= rec["low"] <= rec["high"] <= hi,
+          (lo, rec, hi))
+    check("推理链每步都有依据", all(c.get("basis") for c in sal["reasoning_chain"])
+          and len(sal["reasoning_chain"]) >= 4)
+    check("依据声明明确未用市场数据", "未使用任何市场行情" in sal["basis_statement"])
+    check("报价策略含先问预算与底线", len(sal["negotiation"]) >= 4)
+
+    try:
+        salary_mod.build({"salary_range": None}, card, sc_res, p3_risks)
+        no_range = False
+    except SystemExit:
+        no_range = True
+    check("JD 无薪资区间 → 拒绝编数字", no_range)
+
+    try:
+        salary_mod.guard("这个岗位市场价大概 30K", "测试")
+        guarded = False
+    except SystemExit:
+        guarded = True
+    check("无出处行情措辞 → 拒绝产出", guarded)
+    try:
+        salary_mod.guard("本建议未使用任何市场行情数据", "测试")
+        neg_ok = True
+    except SystemExit:
+        neg_ok = False
+    check("免责声明（带否定语）不被误伤", neg_ok)
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        salary_mod.cmd_run(argparse.Namespace(
+            root=p3, jd=os.path.join("out", "real", "jd.json"),
+            scorecard=os.path.join("out", "scorecard.json"),
+            resume=os.path.join("out", "real", "resume.json"),
+            risks=os.path.join("out", "risks.json"),
+            out=os.path.join("out", "salary.json"), quiet=True))
+    check("薪资 JSON 落盘", os.path.exists(os.path.join(p3, "out", "salary.json")))
+
+    # 闭环：样例只追问了 R-01，--strict 必须失败
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            report_mod.main(["--root", p3, "--only", "04", "--strict", "--quiet"])
+        strict_failed = False
+    except SystemExit as e:
+        strict_failed = e.code != 0
+    check("风险点未全部被追问时 --strict 失败", strict_failed)
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        report_mod.main(["--root", p3, "--only", "04", "--quiet"])
+    rp = os.path.join(p3, "04_简历风险点.md")
+    body = open(rp, encoding="utf-8").read()
+    check("04 覆盖全部风险点编号",
+          all(r["id"] in body for r in p3_risks), len(p3_risks))
+    check("04 标注了被追问位置", "第1轮Q1" in body)
+    check("04 含闭环校验段", "闭环校验" in body)
+    check("04 无未渲染占位符", "{{" not in body)
+
+    # 02 复盘报告：渲染 + 无占位符 + 分数来自 scorecard
+    with contextlib.redirect_stdout(io.StringIO()):
+        report_mod.main(["--root", p3, "--only", "02", "--quiet",
+                         "--resume-label", "样例简历"])
+    rv = open(os.path.join(p3, "02_复盘报告.md"), encoding="utf-8").read()
+    check("02 无未渲染占位符", "{{" not in rv, rv.count("{{"))
+    check("02 含加权总分", str(card["summary"]["weighted_total"]) in rv)
+    check("02 含分轮汇总与维度明细", "分轮汇总" in rv and "维度明细" in rv)
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        report_mod.main(["--root", p3, "--only", "03", "--quiet"])
+    sal_md = open(os.path.join(p3, "03_薪资建议.md"), encoding="utf-8").read()
+    check("03 无未渲染占位符", "{{" not in sal_md)
+    check("03 含结论/推理链/依据声明/报价策略",
+          all(k in sal_md for k in ("结论", "推理链", "依据声明", "报价策略")))
+
+    # 改写建议不得新增事实
+    r0 = p3_risks[0]
+    blob = json.dumps(sc_res, ensure_ascii=False)
+    try:
+        report_mod.validate_rewrite(r0, "同步准确率提升到 99.99%", blob)
+        no_new = False
+    except SystemExit:
+        no_new = True
+    check("改写建议引入新数字 → 拒绝", no_new)
+    try:
+        report_mod.validate_rewrite(r0, "把该句改写为可验证的表述", blob)
+        ok_rw = True
+    except SystemExit:
+        ok_rw = False
+    check("不含新事实的改写建议 → 接受", ok_rw)
 
     print(f"\n===== 结果: {len(PASS)} 通过 / {len(FAIL)} 失败 =====")
     if FAIL:

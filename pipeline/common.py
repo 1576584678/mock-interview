@@ -12,6 +12,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 
 
@@ -72,6 +73,26 @@ def write_json(path: str, obj):
 
 def now() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def render(tpl: str, mapping: dict, where: str = "模板") -> str:
+    """替换 {{KEY}}（大小写均可）。
+
+    有未提供的占位符时**直接报错**，避免把带空白的提示词喂给模型。
+    """
+    missing = set()
+
+    def sub(m):
+        k = m.group(1)
+        if k not in mapping:
+            missing.add(k)
+            return m.group(0)
+        return str(mapping[k])
+
+    out = re.sub(r"\{\{([A-Za-z0-9_]+)\}\}", sub, tpl)
+    if missing:
+        die(f"{where} 模板占位符未被赋值: {', '.join(sorted(missing))}")
+    return out
 
 
 def as_text(v) -> str:

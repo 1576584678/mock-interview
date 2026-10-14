@@ -733,8 +733,12 @@ def main():
     check("汇总里编造判定为 0", ev["summary"]["fabrications"] == [])
     check("必改/必须准备/无需准备三类分开",
           ev["summary"]["must_fix"] == ["E-01"]
-          and set(ev["summary"]["must_prepare"]) == {"E-06", "E-08", "E-09", "E-10", "E-11"},
-          ev["summary"]["must_prepare"])
+          and set(ev["summary"]["must_prepare"]) == {"E-06", "E-09", "E-10", "E-11"}
+          and ev["summary"]["verified_ok"] == ["E-08"],
+          (ev["summary"]["must_prepare"], ev["summary"]["verified_ok"]))
+    check("可信项不写「会崩」的动作",
+          by_id["E-08"]["interview_action"].startswith("已核对通过"),
+          by_id["E-08"]["interview_action"])
     check("只读校验通过且记录了分支/HEAD",
           ev["readonly_verified"] and ev["repos"]["coach"]["head"]
           and ev["repos"]["coach"]["branch"], ev["repos"])

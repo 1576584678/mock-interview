@@ -385,7 +385,10 @@ def run_rule(rule: dict, text: str, repos: dict, author: str, resume: dict,
 
     sev = SEVERITY.get((out["visibility"], out["verdict"]), "🟡")
     out["severity"] = sev
-    out["interview_action"] = INTERVIEW_ACTION.get(out["visibility"], "")
+    if out["verdict"] == "可信":
+        out["interview_action"] = "已核对通过：面试官验证时能对上，可作为正面证据主动讲"
+    else:
+        out["interview_action"] = INTERVIEW_ACTION.get(out["visibility"], "")
     return out
 
 
@@ -482,7 +485,9 @@ def verify(args) -> dict:
         "by_visibility": {v: sum(1 for c in claims if c["visibility"] == v)
                           for v in ("当场可判", "追问可判", "需材料才可判", "不可判")},
         "must_fix": [c["id"] for c in claims if c["visibility"] == "当场可判"],
-        "must_prepare": [c["id"] for c in claims if c["visibility"] == "追问可判"],
+        "must_prepare": [c["id"] for c in claims
+                         if c["visibility"] == "追问可判" and c["verdict"] != "可信"],
+        "verified_ok": [c["id"] for c in claims if c["verdict"] == "可信"],
         "no_prep_needed": [c["id"] for c in claims
                            if c["visibility"] in ("需材料才可判", "不可判")],
         "fabrications": [c["id"] for c in claims if c.get("is_fabrication")],

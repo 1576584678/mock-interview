@@ -360,9 +360,11 @@ def build_risks(work, args) -> str:
                          f"{c['title']}：{c.get('why') or c.get('observed')}")
         L.append("")
 
-        hot = [c for c in claims if c["visibility"] in ("当场可判", "追问可判")]
+        hot = [c for c in claims
+               if c["visibility"] in ("当场可判", "追问可判") and c["verdict"] != "可信"]
         hot.sort(key=lambda c: (SEV_RANK.get(c["severity"], 9), c["id"]))
-        L += ["---", "", "## 四、面试前必做（只收「当场可判」「追问可判」）", ""]
+        ok = [c for c in claims if c["verdict"] == "可信"]
+        L += ["---", "", "## 四、面试前必做（只收「当场可判」「追问可判」且确有问题的）", ""]
         if not hot:
             L.append("本次验真没有发现当场可判 / 追问可判的问题。")
         for c in hot:
@@ -379,6 +381,9 @@ def build_risks(work, args) -> str:
               + ("、".join(c["id"] for c in claims
                            if c["visibility"] in ("需材料才可判", "不可判")) or "无")
               + "——面试官看不到这些，**建议改成真实数字即可，不必为它们准备话术**。", ""]
+        if ok:
+            L += ["> **已核对通过（可当正面证据主动讲）**："
+                  + "、".join(f"{c['id']} {c['title']}" for c in ok) + "。", ""]
 
     total = len(risks)
     covered = sum(1 for r in risks if probes.get(r["id"]))

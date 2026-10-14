@@ -1,7 +1,29 @@
 # pipeline · 脚本接口约定
 
-> 本目录的实现属于 **P1 / P4 / P5**，当前仅有接口约定，代码待开发。
+> 本目录实现进度：**P1 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` / `parse_jd.py`）；
+> P4（`verify_evidence.py`）与 P5（`export_resume.py`）仍待开发。
 > 所有脚本遵循同一约定：**读 JSON / 写 JSON，参数走命令行，不依赖第三方库（优先）。**
+
+## 运行方式
+
+```bash
+python pipeline/parse_resume.py --in 简历.pdf --out out/resume.json --text-out out/resume.txt
+python pipeline/parse_jd.py     --in jd.txt   --out out/jd.json
+python tests/run_tests.py                     # 37 项回归测试
+```
+
+中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
+
+## 实现状态
+
+| 脚本 | 阶段 | 状态 | 说明 |
+|---|---|---|---|
+| `common.py` | P1 | ✅ | 原子写文件、日志走 stderr、`--dry-run` |
+| `extract_text.py` | P1 | ✅ | 多级降级：pdftotext → LibreOffice → 内置解析 |
+| `parse_resume.py` | P1 | ✅ | 章节切分、经历/项目/技能/教育、空窗检测、claims 清单 |
+| `parse_jd.py` | P1 | ✅ | 薪资区间、硬性/加分、维度、业务场景、隐藏痛点 |
+| `verify_evidence.py` | P4 | ⬜ | 待开发（护城河） |
+| `export_resume.py` | P5 | ⬜ | 待开发 |
 
 ## 约定
 

@@ -2,6 +2,8 @@
 .mock-interview/
 out/
 *.local.json
+tests/tmp/
+tests/last_run.txt
 
 # 简历与报告产物
 01_面试对话实录.md

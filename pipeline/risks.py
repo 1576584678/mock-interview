@@ -35,7 +35,10 @@ SOFT_TOKENS = {"供应链", "履约", "库存", "对账"}
 
 # 每类风险进入清单的上限：保证清单"荤素搭配"，
 # 不会出现 12 条全被同一类（比如口径缺失）占满的情况。
-CAPS = {"时间线": 2, "能力缺口": 3, "口径缺失": 4, "夸大词": 2, "机制存疑": 2}
+CAPS = {"硬性门槛": 2, "时间线": 2, "能力缺口": 3, "口径缺失": 4, "夸大词": 2, "机制存疑": 2}
+
+# 学历台阶：JD 要求本科而简历最高学历低于本科时，属于 HR 初筛硬门槛
+EDU_ORDER = ["博士", "硕士", "本科", "大专", "专科", "高中", "中专"]
 
 # 高危夸大词：出现这些词就必须能拿出对应深度的证据
 HEAVY_TOPICS = [
@@ -76,10 +79,57 @@ def _mk(rid, rtype, severity, verifiability, original, why, probe_hint,
     }
 
 
+def _jd_years(jd: dict) -> tuple:
+    """从 JD 文本里取年限门槛：返回 (最小值, 最大值或 None)。"""
+    texts = [as_text(x.get("text") if isinstance(x, dict) else x)
+             for x in (jd.get("must_have", []) + jd.get("duties", []) + jd.get("nice_to_have", []))]
+    for t in texts:
+        m = re.search(r"(\d{1,2})\s*(?:[-–~至]|到)\s*(\d{1,2})\s*年", t)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    for t in texts:
+        m = re.search(r"(\d{1,2})\s*年(?:以上|及以上|\+)", t)
+        if m:
+            return int(m.group(1)), None
+    return None, None
+
+
+def _resume_edu(resume: dict) -> str:
+    blob = as_text(resume.get("education"))
+    for d in EDU_ORDER:
+        if d in blob:
+            return d
+    return ""
+
+
 def seed_risks(resume: dict, jd: dict, max_risks: int = 12) -> list:
     """从 resume.json / jd.json 推导待验证风险点，返回带 R-xx 编号的清单。"""
     blob = _blob(resume).lower()
-    groups = {"时间线": [], "口径缺失": [], "能力缺口": [], "夸大词": [], "机制存疑": []}
+    groups = {"硬性门槛": [], "时间线": [], "口径缺失": [], "能力缺口": [],
+              "夸大词": [], "机制存疑": []}
+
+    # 0) 硬性门槛：年限 / 学历不满足 JD 的硬条件 —— HR 初筛即可能被卡，
+    #    这类问题与"能力"无关，属于**门槛**，所以单独成类且给最高严重度。
+    min_years, _max_years = _jd_years(jd)
+    years = (resume.get("basic") or {}).get("years")
+    if min_years and isinstance(years, (int, float)) and years < min_years:
+        groups["硬性门槛"].append(_mk(
+            None, "硬性门槛", "🔴", "可验证",
+            f"JD 要求 {min_years} 年以上经验，简历自述 {years} 年",
+            f"JD 的年限是硬条件（{min_years} 年以上），简历只有 {years} 年，"
+            "很可能在 HR 初筛阶段就被过滤，面试机会本身受影响",
+            f"如何论证「年限不足但能力对等」：拿出与岗位最相关的产出与独立负责范围",
+        ))
+    jd_blob = as_text([jd.get("must_have"), jd.get("duties")])
+    if "本科" in jd_blob:
+        edu = _resume_edu(resume)
+        if edu and EDU_ORDER.index(edu) > EDU_ORDER.index("本科"):
+            groups["硬性门槛"].append(_mk(
+                None, "硬性门槛", "🔴", "可验证",
+                f"JD 要求本科及以上，简历最高学历为{edu}",
+                "JD 明确写了本科及以上，学历是硬条件，越过它需要额外说明（如在职学历、作品与产出）",
+                "学历不满足时的应对：突出可验证产出，必要时说明学历提升计划",
+            ))
 
     # 1) 时间线空窗：必被追问，且简历通常没写原因
     for g in resume.get("timeline_gaps", []):
@@ -166,7 +216,7 @@ def seed_risks(resume: dict, jd: dict, max_risks: int = 12) -> list:
 
     # 按类别上限收集，再按严重度稳定排序（同严重度保持类内优先顺序）
     picked = []
-    for gname in ("时间线", "口径缺失", "能力缺口", "夸大词", "机制存疑"):
+    for gname in ("硬性门槛", "时间线", "口径缺失", "能力缺口", "夸大词", "机制存疑"):
         picked.extend(groups[gname][:CAPS[gname]])
     picked.sort(key=lambda r: SEV_RANK.get(r["severity"], 9))
     picked = picked[:max_risks]

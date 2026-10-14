@@ -126,3 +126,43 @@ def check_input(path: str):
         die(f"输入文件不存在: {path}")
     if os.path.isdir(path):
         die(f"输入是目录而不是文件: {path}")
+
+
+def resolve_in(work: str, rel: str, alt_dirs=("out",)) -> str:
+    """把相对路径解析到工作区里。
+
+    首次使用者最容易踩的坑：脚本默认路径按"真实跑"布局写成 `out/real/x.json`，
+    而用户（和示例）把文件放在 `out/x.json`。规则只有两条，**顺序固定**：
+
+    1. 拼出来的路径存在 → 用它（正常工作区）；
+    2. 否则按同名文件回退到 `out/`（`out/real/x.json` → `out/x.json`）。
+
+    ⚠️ 刻意**不做**"先看相对当前目录是否存在"这一步：当工作区恰好是测试夹具、
+    而仓库根目录又有同名真实产物时，那样会静默读到错误文件（这条曾经真的踩过）。
+    输入路径要么给绝对路径，要么相对于工作区。
+    """
+    if os.path.isabs(rel):
+        return rel
+    joined = os.path.join(work, rel)
+    if os.path.exists(joined):
+        return joined
+    for d in alt_dirs:
+        alt = os.path.join(work, d, os.path.basename(rel))
+        if os.path.exists(alt):
+            return alt
+    return joined
+
+
+def resolve_out(work: str, rel: str) -> str:
+    """解析输出路径：不制造嵌套目录（`<root>/examples/x/work/out/a.json` 那种）。
+
+    判断依据是"目标目录是否存在"，而不是"文件是否存在"——输出文件本来还不存在。
+    只有当下面的两件事同时成立时，才认为用户写的是相对当前目录的完整路径：
+    ① 该路径的目录在当前位置存在；② 拼到工作区里的目录不存在。
+    """
+    if os.path.isabs(rel):
+        return rel
+    d = os.path.dirname(rel)
+    if d and os.path.isdir(d) and not os.path.isdir(os.path.dirname(os.path.join(work, rel))):
+        return rel
+    return os.path.join(work, rel)

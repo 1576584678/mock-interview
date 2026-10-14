@@ -47,6 +47,14 @@ PERIOD_RE = re.compile(
 QUANT_RE = re.compile(
     r"(\d+(?:\.\d+)?)\s*(%|％|次|个|项|条|家|份|万条|万|亿|ms|毫秒|秒|分钟|小时|天|QPS|qps|倍|页|人|个月)"
 )
+# 「这个数字有口径」的判据：分子分母、统计窗口、数据来源、对比基准……
+# 注意：只认**能自证统计方式**的词，不认「定义」这种宽泛词（"产品定义"会误伤）。
+DEF_RE = re.compile(
+    r"口径|分子|分母|定义为|计算方式|统计(?:窗口|周期|口径|来源|范围)|"
+    r"取自|来源是|依据|基准|埋点|监控数据|压测|采样|样本|环比|同比|对比|"
+    r"P9\d|P95|中位数|均值|阈值|目标是|以[^。；\n]{0,12}为(?:准|口径)"
+)
+
 # 前缀型量化声明：QPS 5000 / TPS 2000 / 日均 10 万条
 PREFIX_QUANT_RE = re.compile(
     r"(QPS|qps|TPS|tps|PV|UV|DAU|MAU|日均|峰值)\s*[:：]?\s*(\d+(?:[.,]\d+)?)\s*(万条|万|亿|条|次)?"
@@ -173,11 +181,34 @@ def parse_basic(lines, full_text):
     basic = {"name": None, "title": None, "years": None, "phone": None,
              "email": None, "github": None, "wechat": None, "city": None}
 
-    for ln in lines:
+    # 姓名显式声明优先：姓名：张三 / 姓名 张三
+    m = re.search(r"姓\s*名\s*[:：]\s*([\u4e00-\u9fa5]{2,4})", full_text)
+    if m:
+        basic["name"] = m.group(1)
+
+    def _split_head(t):
+        """把 `张三 · 后端开发工程师` 这类标题行拆成 (姓名, 职位)。"""
+        parts = [p.strip() for p in re.split(r"[·|｜/\\,，\-—–:：]+|\s{2,}", t) if p.strip()]
+        name = next((p for p in parts if re.fullmatch(r"[\u4e00-\u9fa5]{2,4}", p)
+                     and p not in _ALIAS_LOOKUP), None)
+        rest = " ".join(p for p in parts if p != name)
+        return name, (rest[:40] if rest else None)
+
+    for ln in lines[:12]:
         t = strip_marker(ln)
         if not t:
             continue
-        if basic["name"] is None and re.fullmatch(r"[\u4e00-\u9fa5]{2,4}", t):
+        # 头部到第一个章节标题为止（姓名不会出现在"求职意向"之后）
+        if t in _ALIAS_LOOKUP:
+            break
+        if basic["name"] is None:
+            n, rest = _split_head(t)
+            if n:
+                basic["name"] = n
+                if basic["title"] is None and rest:
+                    basic["title"] = rest
+        if basic["name"] is None and re.fullmatch(r"[\u4e00-\u9fa5]{2,4}", t) \
+                and t not in _ALIAS_LOOKUP:
             basic["name"] = t
         if basic["title"] is None and re.search(
             r"(工程师|开发|架构师|技术专家|负责人|经理|主管)", t
@@ -194,7 +225,9 @@ def parse_basic(lines, full_text):
     basic["github"] = m.group(0) if m else None
     m = re.search(r"(?:微信|weixin|wechat)\s*[:：]?\s*([\w.-]{3,30})", full_text, re.I)
     basic["wechat"] = m.group(1) if m else None
-    m = re.search(r"(\d{1,2})\s*年[^。\n]{0,12}经验", full_text)
+    m = re.search(r"(\d{1,2})\s*年(?:以上)?[^。\n]{0,12}经验", full_text)
+    if not m:
+        m = re.search(r"工作\s*(\d{1,2})\s*年", full_text)
     if not m:
         m = re.search(r"([一二三四五六七八九十]+)\s*年[^。\n]{0,12}经验", full_text)
     if m:
@@ -261,6 +294,20 @@ def parse_skills(lines):
         profs = [f"{a}{b}" for a, b in PROF_RE.findall(body)]
         skills.append({"category": cat, "items": items, "proficiency_claims": profs})
         i += 1
+    # 兜底：技能写成整段散文（「精通 A；熟练 B；熟悉 C」）时没有「分类：清单」结构，
+    # 上面一条都抽不到——按分隔符切一遍，全部归到一个「专业技能」类里。
+    if not skills:
+        prose = [strip_marker(l) for l in lines]
+        prose = [p for p in prose if p and not _is_short_label(p)]
+        blob = " ".join(prose)
+        items = [x.strip() for x in re.split(r"[、,，;；]| \| |\s{2,}", blob)
+                 if x.strip() and len(x.strip()) <= 40]
+        if items:
+            skills.append({
+                "category": "专业技能",
+                "items": items[:40],
+                "proficiency_claims": [f"{a}{b}" for a, b in PROF_RE.findall(blob)],
+            })
     return skills
 
 
@@ -482,7 +529,7 @@ def extract_claims(text):
                 "text": s,
                 "value": float(m.group(1)) if "." in m.group(1) else int(m.group(1)),
                 "unit": m.group(2),
-                "has_definition": bool(re.search(r"口径|分子|分母|即|指|定义为|计算方式", s)),
+                "has_definition": bool(DEF_RE.search(s)),
             })
         for m in PREFIX_QUANT_RE.finditer(s):
             key = f"{s[:60]}|{m.group(0)}"
@@ -494,7 +541,7 @@ def extract_claims(text):
                 "text": s,
                 "value": float(m.group(2).replace(",", "")) if "." in m.group(2) else int(m.group(2).replace(",", "")),
                 "unit": (m.group(1) + (m.group(3) or "")),
-                "has_definition": bool(re.search(r"口径|分子|分母|即|指|定义为|计算方式", s)),
+                "has_definition": bool(DEF_RE.search(s)),
             })
         if MECH_RE.search(s):
             mm = MECH_RE.search(s)

@@ -23,7 +23,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from common import Log, die, now, read_text, render, write_text  # noqa: E402
+from common import Log, die, now, read_text, render, write_text, resolve_in  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -56,10 +56,10 @@ EFFORT = {"P0": "面试前必做（≤1 小时）", "P1": "本周内（≤半天
 # ------------------------------------------------------------------ 工具
 
 def load(work, rel, required=True):
-    fp = os.path.join(work, rel)
+    fp = resolve_in(work, rel)
     if not os.path.exists(fp):
         if required:
-            die(f"缺少输入文件: {fp}")
+            die(f"缺少输入文件: {os.path.join(work, rel)}")
         return None
     with open(fp, encoding="utf-8") as f:
         return json.load(f)

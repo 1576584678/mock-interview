@@ -121,8 +121,9 @@ def parse_jd(text):
 
     title = None
     for ln in lines[:4]:
-        if re.search(r"(工程师|开发|架构师|专家|负责人)", ln) and len(ln) <= 40:
-            title = ln
+        t = re.sub(r"^[\s#>*+\-—–]+", "", ln).strip()   # Markdown 标题标记不算职位名
+        if re.search(r"(工程师|开发|架构师|专家|负责人)", t) and len(t) <= 40:
+            title = t
             break
     salary, salary_note = parse_salary(text)
     if not salary:

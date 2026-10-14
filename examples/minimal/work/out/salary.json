@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "generated_at": "2026-10-14 15:12:50",
+    "inputs": [
+      "out/real/jd.json",
+      "out/scorecard.json",
+      "out/real/resume.json",
+      "out/risks.json"
+    ],
+    "model_params": {
+      "base_position": 0.5,
+      "score_span": 0.3,
+      "gap_penalty": 0.05,
+      "gap_penalty_cap": 0.15,
+      "band_half": 0.15
+    }
+  },
+  "jd_range": [
+    20000.0,
+    35000.0
+  ],
+  "recommended": {
+    "low": 25500.0,
+    "mid": 27500.0,
+    "high": 30000.0
+  },
+  "position": 0.515,
+  "reasoning_chain": [
+    {
+      "step": "锚定区间",
+      "value": "20K – 35K",
+      "basis": "jd.json 字段 salary_range=[20000, 35000]（招聘方给出的区间，唯一外部锚点）"
+    },
+    {
+      "step": "能力得分映射",
+      "value": "加权总分 4.1 → 分位偏移 +0.16",
+      "basis": "scorecard.json 字段 summary.weighted_total=4.1；公式偏移 = 0.3 × clamp((总分 − 3.0) / 2.0, 0, 1)"
+    },
+    {
+      "step": "岗位缺口扣减",
+      "value": "−0.15",
+      "basis": "risks.json 中类型=能力缺口且严重度∈(🔴,🟠) 的 3 条：R-02, R-03, R-04；每个 −0.05，上限 −0.15"
+    },
+    {
+      "step": "资历参考",
+      "value": "6 年经验",
+      "basis": "resume.json 字段 basic.years（仅用于说明不因年限自动上浮：本模型只看能力得分与岗位缺口，不做年限溢价）"
+    },
+    {
+      "step": "区间合成",
+      "value": "定位分位 0.51",
+      "basis": "公式 定位 = clamp(0.5 + 偏移 − 扣减, 0.15, 0.9)；建议区间半宽 ±0.15 分位"
+    }
+  ],
+  "basis_statement": "本建议只用三类输入：招聘方给出的 JD 区间、你在模拟面试中的加权得分、以及简历与 JD 之间的能力缺口清单。**未使用任何市场行情、行业均价或招聘平台数据**——这类数字无法自证，本 skill 一律不输出。城市、公司规模、期权结构等未纳入模型：拿到具体 offer 后按这些因素再校准。",
+  "negotiation": [
+    {
+      "step": "先问预算",
+      "script": "想先了解一下这个岗位的薪资区间是怎么定的？"
+    },
+    {
+      "step": "报区间上限",
+      "script": "我了解到这个岗位的区间是 20K–35K，我的期望落在 30.0K 附近。"
+    },
+    {
+      "step": "给理由",
+      "script": "理由不是年限，是我能直接接手的部分和需要补的部分：能直接接的是分布式同步链路、权限与认证体系；需要补的是仓储履约的限流降级与库存对账，这部分我按 1–2 个月上手来算。"
+    },
+    {
+      "step": "不被压到下限",
+      "script": "如果整体预算卡在 20K 附近，我希望了解差额是靠职级还是绩效包来补。"
+    }
+  ]
+}

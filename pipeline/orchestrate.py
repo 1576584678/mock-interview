@@ -41,6 +41,18 @@ MAX_FOLLOWUPS = 3
 MIN_Q, MAX_Q = 4, 6
 STATE = "state.json"
 PROMPT_DIR = "prompts"
+# 提示词属于**skill 自带资产**，不属于用户工作区：用户在自己目录里跑时
+# `<root>/prompts` 往往不存在，此时回退到 skill 根目录下的 prompts/。
+SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def prompt_path(root: str, name: str) -> str:
+    p = os.path.join(root, PROMPT_DIR, name)
+    if not os.path.exists(p):
+        alt = os.path.join(SKILL_ROOT, PROMPT_DIR, name)
+        if os.path.exists(alt):
+            return alt
+    return p
 
 
 # ---------------------------------------------------------------- 基础设施
@@ -287,7 +299,7 @@ def cmd_prepare(args):
     risk_map = {r["id"]: r for r in st["risks"]}
     risks = [risk_map[i] for i in ctx["risks"] if i in risk_map]
 
-    tpl = read_text(os.path.join(root, PROMPT_DIR, "interviewer.md"))
+    tpl = read_text(prompt_path(root, "interviewer.md"))
     out_path = os.path.join(rounds_dir(root), f"round-{args.round}.interviewer.json")
     body = render(tpl, {
         "POSITION": st["position"],
@@ -363,7 +375,7 @@ def cmd_prepare_candidate(args):
             lines.append(f"  {j}. {f}")
         lines.append("")
 
-    tpl = read_text(os.path.join(root, PROMPT_DIR, "candidate.md"))
+    tpl = read_text(prompt_path(root, "candidate.md"))
     out_path = os.path.join(rounds_dir(root), f"round-{args.round}.answers.json")
     body = render(tpl, {
         "POSITION": st["position"],

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>陈一鸣 · 后端开发工程师</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --sub:#4a4a4a; --line:#d8d8d8; --accent:#1f4e79; --soft:#f5f7fa;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:28px 18px 60px;
+    background:#eceff3;
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Source Han Sans SC",system-ui,-apple-system,sans-serif;
+    color:var(--ink); font-size:14px; line-height:1.62;
+  }
+  .page{
+    max-width:840px; margin:0 auto; background:#fff; padding:38px 44px 44px;
+    box-shadow:0 2px 14px rgba(0,0,0,.10);
+  }
+
+  /* ---------- 改动说明（打印时自动隐藏，见 @media print） ---------- */
+  .changelog{
+    max-width:840px; margin:0 auto 18px; background:#fffbe8; border:1px solid #e8d48a;
+    border-radius:6px; padding:18px 22px; font-size:13px; line-height:1.7;
+  }
+  .changelog h2{margin:0 0 10px; font-size:15px; color:#8a6a00;}
+  .changelog h3{margin:14px 0 6px; font-size:13.5px; color:#8a6a00;}
+  .changelog ol{margin:0; padding-left:20px;}
+  .changelog li{margin-bottom:5px;}
+  .tag{display:inline-block; font-size:11.5px; padding:0 6px; border-radius:3px; margin-right:6px; vertical-align:1px;}
+  .t-fix{background:#ffe0e0; color:#a52020;}
+  .t-add{background:#e0f0e0; color:#1d6b2a;}
+  .t-pos{background:#e0e8ff; color:#1f3f9e;}
+  .t-fmt{background:#eee; color:#555;}
+  .changelog .note{color:#7a6a30; margin-top:12px; padding-top:10px; border-top:1px dashed #e0cf9a;}
+
+  /* ---------- 头部 ---------- */
+  .hd{border-bottom:2px solid var(--accent); padding-bottom:14px; margin-bottom:18px;}
+  .hd h1{margin:0 0 4px; font-size:26px; letter-spacing:1px;}
+  .hd .title{font-size:14.5px; color:var(--accent); font-weight:700; margin-bottom:8px;}
+  .hd .meta{font-size:13px; color:var(--sub);}
+  .hd .meta span{margin-right:14px; white-space:nowrap;}
+
+  /* ---------- 章节 ---------- */
+  h2.sec{
+    font-size:15.5px; margin:22px 0 10px; padding:3px 0 3px 10px;
+    border-left:4px solid var(--accent); background:var(--soft); color:#12304d;
+  }
+  h3.job{font-size:14.5px; margin:16px 0 2px;}
+  .jobline{font-size:12.8px; color:var(--sub); margin-bottom:6px;}
+  .jobline b{color:var(--ink);}
+  .stack{font-size:12.5px; color:#5a6b7a; margin:2px 0 6px;}
+  ul{margin:4px 0 8px; padding-left:19px;}
+  li{margin-bottom:4px;}
+  li::marker{color:var(--accent);}
+  b,strong{color:#000;}
+  .num{font-weight:700; color:#a5300f;}
+  em{font-style:normal; background:#eef4fb; padding:0 3px; border-radius:2px;}
+
+  /* 核心优势 */
+  .adv{margin:0; padding:0; list-style:none;}
+  .adv li{position:relative; padding-left:16px; margin-bottom:7px;}
+  .adv li::before{content:""; position:absolute; left:0; top:8px; width:6px; height:6px; background:var(--accent); border-radius:50%;}
+  .adv b{color:#12304d;}
+
+  /* 技能表 */
+  table.skills{width:100%; border-collapse:collapse; font-size:13.2px;}
+  table.skills td{padding:5px 8px; border-bottom:1px solid #eee; vertical-align:top;}
+  table.skills td:first-child{width:104px; color:#12304d; font-weight:700; white-space:nowrap;}
+
+  /* 时间线 */
+  .tl{font-size:13px; color:var(--sub); line-height:1.9;}
+  .tl b{color:var(--ink);}
+
+  .unconfirmed{color:#8a6a00; font-size:12.5px;}
+
+  @media print{
+    @page{ size:A4; margin:12mm 11mm; }
+    body{background:#fff; padding:0; font-size:10.4pt; line-height:1.5;}
+    .page{max-width:none; padding:0; box-shadow:none;}
+    .changelog{display:none !important;}
+    h2.sec{background:#f2f5f8; -webkit-print-color-adjust:exact; print-color-adjust:exact; margin:13px 0 7px; page-break-after:avoid;}
+    .hd{border-bottom-width:2px; page-break-after:avoid;}
+    li{page-break-inside:avoid;}
+    h3.job{page-break-after:avoid;}
+    .jobline,.stack{page-break-after:avoid; page-break-inside:avoid;}
+    .adv li{page-break-inside:avoid;}
+    p,li,div{orphans:2; widows:2;}
+    table.skills,table.skills tr{page-break-inside:avoid;}
+    .avoid-break{page-break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 改动说明（打印 / 导出 PDF 时自动隐藏，不进入正式简历） ============ -->
+<section class="changelog">
+  <h2>📌 本次改动说明（打印 / 导出 PDF 时自动隐藏，不进入正式简历）</h2>
+  <h3>一、已自动应用的改动（逐条可回溯到风险点编号）</h3>
+  <ol>
+    <li><span class="tag t-add">补口径</span><b>[R-01]</b> 原：<span class="num">替代原有人工登记，日志覆盖率 100%。</span> → 改：<b>替代原有人工登记，实现关键操作留痕。</b><br><span class="note">删掉无分子分母的裸数字「100%」，改为可自证的定性表述（降级 + 去注水感）。不算新增事实：留痕即该改造的既有含义。若用户能提供真实分子/分母与统计周期，再补回数字。</span></li>
+    <li><span class="tag t-add">补口径</span><b>[R-05]</b> 原：<span class="num">中间件：RocketMQ、Kafka（3 个 Topic 的生产与消费）</span> → 改：<b>中间件：RocketMQ、Kafka（生产与消费）</b><br><span class="note">去掉裸数字「3 个」，改为不依赖口径的定性表述，避免面试官追问分子分母。Topic 数量本身不是加分项，删除不损失能力信息。</span></li>
+    <li><span class="tag t-fix">机制存疑</span><b>[R-07]</b> 原：<span class="num">- 语言与框架：Java 17、Spring Boot 3、MyBatis-Plus、Dubbo</span> → 改：<b>- 语言：Java 17
+- 框架：Spring Boot 3、MyBatis-Plus、Dubbo
+- 语言边界：Java 17 为日常主力版本，框架部分按实际使用深度自述</b><br><span class="note">重排 + 拆分：「语言与框架」混写是模板残留，容易被当成堆概念；按能力域拆成独立行，并为最上面一行定出可自述的边界，把机制类追问引导到真实用过的点上。不新增任何技术事实与数字（17、3 均来自原文）。</span></li>
+  </ol>
+  <h3>二、需人工确认（共 4 条，未自动改动正文）</h3>
+  <ol>
+    <li><span class="tag t-pos">不写进简历</span><b>[R-02]</b> JD 明确要求「熔断」，简历中检索不到对等经历，面试官会验证是否有迁移能力<br>处置：熔断经历是 JD 硬性要求，但简历中确实没有对应事实。自动改写只能靠新增「有熔断经验」的表述来覆盖，属于编造事实，违反不新增事实红线。需用户确认是否真有熔断相关实践（哪怕是相邻的降级兜底/手工补偿），确认后才能由用户口述、由改写者落笔。</li>
+    <li><span class="tag t-pos">不写进简历</span><b>[R-03]</b> JD 明确要求「限流」，简历中检索不到对等经历，面试官会验证是否有迁移能力<br>处置：限流同上：简历中检索不到限流事实，自动补写即为新增虚构经历。需用户提供真实案例（网关限流、Sentinel 配置、单机限流等）后再改，否则只能靠面试话术做迁移论证。</li>
+    <li><span class="tag t-pos">不写进简历</span><b>[R-04]</b> JD 明确要求「降级」，简历中检索不到对等经历，面试官会验证是否有迁移能力<br>处置：降级同上：原文只有死信队列与人工补偿，不能等同于「降级预案」。把它改写成降级经验是扩大口径，属于新增事实。需用户确认后处理。</li>
+    <li><span class="tag t-add">补口径</span><b>[R-06]</b> 只有结果数字没有口径，面试官一问分子分母就答不上，等于自曝注水<br>处置：「累计处理消息 1.2 亿条」缺口径，补齐口径必须写明分子（生产端投递 / 消费成功）与统计周期，这些数字原文没有，写出来就是新造数字；而沿用 1.2 亿又不能自证。需用户提供真实的分子分母与统计周期，或由用户决定整段降级为定性表述。</li>
+  </ol>
+  <h3>三、可直接采用的改写文案（来自风险评估，未自动替换）</h3>
+  <ol>
+    <li><b>[R-02]</b> 不要在简历里补写「熔断经验」。准备迁移话术：说明你做过的是消费失败进死信队列 + 人工补偿入口这类兜底，讲清熔断、限流、降级的区别与各自触发条件，并主动声明熔断是你尚未在生产落地的部分（盲区），给出上手路径。<br><span class="note">JD 硬性要求缺失项；只修话术口径，不新增经历。</span></li>
+    <li><b>[R-03]</b> 同理不补写「限流经验」。可迁移的相邻能力是缓存穿透处理与失败补偿链路；话术里明确「限流我在生产上没有落地，但能说清网关/单机限流的实现位置与选型差异」，把不会的点讲成边界而不是空白。<br><span class="note">JD 硬性要求缺失项；只降口径、补边界。</span></li>
+    <li><b>[R-04]</b> 不把死信队列与人工补偿包装成「降级」。话术：「降级我理解为在依赖不可用或超时率上升时切换到兜底逻辑；我在消息链路里做过的是消费失败隔离与人工补偿，属于故障兜底的一种，但严格意义的接口自动降级我没有负责过。」<br><span class="note">避免把兜底改写成降级，防止被追问成本与失败路径时崩。</span></li>
+    <li><b>[R-06]</b> 「累计处理消息 1.2 亿条」要么补齐真实口径（分子是生产端投递还是消费成功、统计周期多长、口径来源），要么改成定性：「基于 RocketMQ 事务消息保证『订单下发 → 库存扣减』最终一致，消费失败进入死信队列并有人工补偿入口」。无法自证时选后者。<br><span class="note">口径缺失类；数字必须能自证，否则降级为定性。</span></li>
+  </ol>
+  <h3>四、全局表述与结构</h3>
+  <ol>
+    <li>标题保持岗位中立，只写能力域，不绑定任何具体岗位或单一赛道。</li>
+    <li>章节顺序：个人优势 → 专业技能 → 工作经历 → 项目经历 → 教育经历 → 时间线说明。</li>
+    <li>改动说明置于 HTML 顶部，打印/导出 PDF 时自动隐藏，不进入正式简历。</li>
+  </ol>
+  <div class="note"><b>保守处理（没有改动的地方）：</b>没有新增任何简历之外、也无法自证的内容；<b>能力缺口类风险点不写进简历</b>（写了就是送分给面试官），只在面试话术里做迁移论证。<br><b>本次共自动应用 3 条改动</b>，其余条目见上方清单，改写建议均经过「不得引入新数字」校验。</div>
+</section>
+
+<!-- ============ 正式简历 ============ -->
+<div class="page">
+
+  <header class="hd">
+    <h1>陈一鸣</h1>
+    <div class="title">后端开发工程师（6）</div>
+    <div class="meta">
+<span><b>6</b> 经验</span>
+      <span>13900000001</span>
+      <span>chenym@example.com</span>
+      <span>杭州</span>
+    </div>
+  </header>
+
+<h2 class="sec">专业技能</h2>
+<table class="skills">
+<tr><td>语言与框架</td><td>Java 17、Spring Boot 3、MyBatis-Plus、Dubbo</td></tr>
+<tr><td>存储</td><td>MySQL（索引优化、事务隔离）、Redis（List / Hash、缓存穿透处理）</td></tr>
+<tr><td>中间件</td><td>RocketMQ、Kafka（3 个 Topic 的生产与消费）</td></tr>
+<tr><td>工程</td><td>GitLab CI/CD、Docker、K8s 基础运维</td></tr>
+<tr><td>边界说明</td><td>分库分表只在测试环境做过 ShardingSphere 验证、未上生产、TiDB 只在公司内部技术分享中了解过、没有实际使用。</td></tr>
+</table>
+<h2 class="sec">工作经历</h2>
+<h3 class="job">杭州某某科技有限公司 ｜ 后端开发工程师 ｜ 杭州某某科技有限公司 ｜ 后端开发工程师 ｜ 2021.03 – 至今</h3>
+<ul>
+<li>仓储履约系统 · 出库单模块**负责出库单创建、波次分配、面单回传三个模块的后端开发与线上问题定位。</li>
+<li>基于 RocketMQ 事务消息保证"订单下发 → 库存扣减"最终一致，累计处理消息 1.2 亿条；消费失败进入死信队列，人工补偿入口日均处理 30 余笔。</li>
+<li>出库单列表接口慢查询优化：把 5 表联查拆为两段查询 + 批量填充，接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。</li>
+<li>2023 年双 11 大促保障：压测目标 300 单/秒，实际峰值 412 单/秒，期间无 P0/P1 故障。</li>
+</ul>
+<h3 class="job">杭州某某网络技术有限公司 ｜ Java 开发工程师 ｜ 杭州某某网络技术有限公司 ｜ Java 开发工程师 ｜ 2019.07 – 2021.02</h3>
+<div class="stack">用 Spring AOP + 自定义注解实现操作日志 · 替代原有人工登记 · 日志覆盖率 100%。</div>
+<ul>
+<li>参与某电商后台管理系统开发，负责订单、售后两个模块。</li>
+</ul>
+<h2 class="sec">项目经历</h2>
+<h3 class="job">履约时效看板（内部工具）</h3>
+<div class="stack">独立开发：Spring Boot + Vue · 读取数仓 ADS 层表 · 展示各仓出库时效分布。</div>
+<ul>
+<li>使用人数 40 余人，日均访问 200 余次。</li>
+</ul>
+<h2 class="sec">教育经历</h2>
+<ul>
+<li>2015.09 – 2019.06 ｜ 某某大学 ｜ 计算机科学与技术 ｜ 本科</li>
+</ul>
+
+</div>
+</body>
+</html>

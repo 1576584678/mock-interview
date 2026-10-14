@@ -1,0 +1,192 @@
+{
+  "basic": {
+    "name": "陈一鸣",
+    "title": "后端开发工程师",
+    "years": 6,
+    "phone": "13900000001",
+    "email": "chenym@example.com",
+    "github": null,
+    "wechat": null,
+    "city": "杭州"
+  },
+  "summary": [],
+  "skills": [
+    {
+      "category": "语言与框架",
+      "items": [
+        "Java 17",
+        "Spring Boot 3",
+        "MyBatis-Plus",
+        "Dubbo"
+      ],
+      "proficiency_claims": []
+    },
+    {
+      "category": "存储",
+      "items": [
+        "MySQL（索引优化",
+        "事务隔离）",
+        "Redis（List / Hash",
+        "缓存穿透处理）"
+      ],
+      "proficiency_claims": []
+    },
+    {
+      "category": "中间件",
+      "items": [
+        "RocketMQ",
+        "Kafka（3 个 Topic 的生产与消费）"
+      ],
+      "proficiency_claims": []
+    },
+    {
+      "category": "工程",
+      "items": [
+        "GitLab CI/CD",
+        "Docker",
+        "K8s 基础运维"
+      ],
+      "proficiency_claims": []
+    },
+    {
+      "category": "边界说明",
+      "items": [
+        "分库分表只在测试环境做过 ShardingSphere 验证",
+        "未上生产",
+        "TiDB 只在公司内部技术分享中了解过",
+        "没有实际使用。"
+      ],
+      "proficiency_claims": [
+        "了解过"
+      ]
+    }
+  ],
+  "experiences": [
+    {
+      "company": "杭州某某科技有限公司",
+      "title": "后端开发工程师",
+      "start": "2021.03",
+      "end": "至今",
+      "raw": "杭州某某科技有限公司 ｜ 后端开发工程师 ｜ 2021.03 – 至今",
+      "stack": [],
+      "highlights": [
+        "仓储履约系统 · 出库单模块**",
+        "负责出库单创建、波次分配、面单回传三个模块的后端开发与线上问题定位。",
+        "基于 RocketMQ 事务消息保证\"订单下发 → 库存扣减\"最终一致，累计处理消息 1.2 亿条；消费失败进入死信队列，人工补偿入口日均处理 30 余笔。",
+        "出库单列表接口慢查询优化：把 5 表联查拆为两段查询 + 批量填充，接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。",
+        "2023 年双 11 大促保障：压测目标 300 单/秒，实际峰值 412 单/秒，期间无 P0/P1 故障。"
+      ]
+    },
+    {
+      "company": "杭州某某网络技术有限公司",
+      "title": "Java 开发工程师",
+      "start": "2019.07",
+      "end": "2021.02",
+      "raw": "杭州某某网络技术有限公司 ｜ Java 开发工程师 ｜ 2019.07 – 2021.02",
+      "stack": [
+        "用 Spring AOP + 自定义注解实现操作日志",
+        "替代原有人工登记",
+        "日志覆盖率 100%。"
+      ],
+      "highlights": [
+        "参与某电商后台管理系统开发，负责订单、售后两个模块。"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "履约时效看板（内部工具）",
+      "period": "",
+      "role": "",
+      "stack": [
+        "独立开发：Spring Boot + Vue",
+        "读取数仓 ADS 层表",
+        "展示各仓出库时效分布。"
+      ],
+      "highlights": [
+        "使用人数 40 余人，日均访问 200 余次。"
+      ]
+    }
+  ],
+  "education": [
+    "2015.09 – 2019.06 ｜ 某某大学 ｜ 计算机科学与技术 ｜ 本科"
+  ],
+  "opensource": [],
+  "timeline_gaps": [],
+  "claims": {
+    "quantitative": [
+      {
+        "id": "C-Q01",
+        "text": "- 中间件：RocketMQ、Kafka（3 个 Topic 的生产与消费）",
+        "value": 3,
+        "unit": "个",
+        "has_definition": false
+      },
+      {
+        "id": "C-Q02",
+        "text": "- 基于 RocketMQ 事务消息保证\"订单下发 → 库存扣减\"最终一致，累计处理消息 1.2 亿条；",
+        "value": 1.2,
+        "unit": "亿",
+        "has_definition": false
+      },
+      {
+        "id": "C-Q03",
+        "text": "- 出库单列表接口慢查询优化：把 5 表联查拆为两段查询 + 批量填充，接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。",
+        "value": 1.8,
+        "unit": "秒",
+        "has_definition": true
+      },
+      {
+        "id": "C-Q04",
+        "text": "- 出库单列表接口慢查询优化：把 5 表联查拆为两段查询 + 批量填充，接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。",
+        "value": 320,
+        "unit": "毫秒",
+        "has_definition": true
+      },
+      {
+        "id": "C-Q05",
+        "text": "- 出库单列表接口慢查询优化：把 5 表联查拆为两段查询 + 批量填充，接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。",
+        "value": 7,
+        "unit": "天",
+        "has_definition": true
+      },
+      {
+        "id": "C-Q06",
+        "text": "- 2023 年双 11 大促保障：压测目标 300 单/秒，实际峰值 412 单/秒，期间无 P0/P1 故障。",
+        "value": 412,
+        "unit": "峰值",
+        "has_definition": true
+      },
+      {
+        "id": "C-Q07",
+        "text": "- 用 Spring AOP + 自定义注解实现操作日志，替代原有人工登记，日志覆盖率 100%。",
+        "value": 100,
+        "unit": "%",
+        "has_definition": false
+      }
+    ],
+    "mechanism": [
+      {
+        "id": "C-M01",
+        "text": "- 语言与框架：Java 17、Spring Boot 3、MyBatis-Plus、Dubbo",
+        "keyword": "语言与",
+        "mechanism_type": "框架"
+      }
+    ]
+  },
+  "_meta": {
+    "source": "C:\\Users\\hp\\Documents\\deepseek-harness\\default-workspace\\mock-interview\\examples\\minimal\\input\\示例简历.md",
+    "extractor": "plain-text",
+    "generated_at": "2026-10-14 14:49:54",
+    "chars": 987,
+    "sections_found": [
+      "basic",
+      "body",
+      "education",
+      "experience",
+      "projects",
+      "skills"
+    ],
+    "warnings": []
+  }
+}

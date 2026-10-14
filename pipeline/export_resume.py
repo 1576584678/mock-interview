@@ -30,7 +30,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from common import Log, die, read_text, render, write_text  # noqa: E402
+from common import Log, die, read_text, render, write_text, resolve_in  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -486,8 +486,7 @@ def cmd_run(args):
     log = Log(quiet=args.quiet)
 
     def rp(rel, default_dir="out"):
-        p = rel if os.path.isabs(rel) else os.path.join(work, rel)
-        return p
+        return resolve_in(work, rel)
 
     resume_path = rp(args.resume)
     if not os.path.exists(resume_path):

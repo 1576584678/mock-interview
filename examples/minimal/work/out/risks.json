@@ -1,0 +1,72 @@
+[
+  {
+    "id": "R-01",
+    "type": "口径缺失",
+    "severity": "🟠",
+    "verifiability": "可验证",
+    "original": "- 用 Spring AOP + 自定义注解实现操作日志，替代原有人工登记，日志覆盖率 100%。",
+    "why": "只有结果数字没有口径，面试官一问分子分母就答不上，等于自曝注水",
+    "probe_hint": "该数字（100%）的分子、分母与统计周期",
+    "source": "resume"
+  },
+  {
+    "id": "R-02",
+    "type": "能力缺口",
+    "severity": "🟠",
+    "verifiability": "仅叙述",
+    "original": "JD 硬性要求提到「熔断」：有限流、降级、熔断的实践经验；",
+    "why": "JD 明确要求「熔断」，简历中检索不到对等经历，面试官会验证是否有迁移能力",
+    "probe_hint": "没有 熔断 经验时，用相邻能力做迁移论证（说清哪些能做、哪些是盲区）",
+    "source": "jd"
+  },
+  {
+    "id": "R-03",
+    "type": "能力缺口",
+    "severity": "🟠",
+    "verifiability": "仅叙述",
+    "original": "JD 硬性要求提到「限流」：有限流、降级、熔断的实践经验；",
+    "why": "JD 明确要求「限流」，简历中检索不到对等经历，面试官会验证是否有迁移能力",
+    "probe_hint": "没有 限流 经验时，用相邻能力做迁移论证（说清哪些能做、哪些是盲区）",
+    "source": "jd"
+  },
+  {
+    "id": "R-04",
+    "type": "能力缺口",
+    "severity": "🟠",
+    "verifiability": "仅叙述",
+    "original": "JD 硬性要求提到「降级」：有限流、降级、熔断的实践经验；",
+    "why": "JD 明确要求「降级」，简历中检索不到对等经历，面试官会验证是否有迁移能力",
+    "probe_hint": "没有 降级 经验时，用相邻能力做迁移论证（说清哪些能做、哪些是盲区）",
+    "source": "jd"
+  },
+  {
+    "id": "R-05",
+    "type": "口径缺失",
+    "severity": "🟡",
+    "verifiability": "可验证",
+    "original": "- 中间件：RocketMQ、Kafka（3 个 Topic 的生产与消费）",
+    "why": "只有结果数字没有口径，面试官一问分子分母就答不上，等于自曝注水",
+    "probe_hint": "该数字（3个）的分子、分母与统计周期",
+    "source": "resume"
+  },
+  {
+    "id": "R-06",
+    "type": "口径缺失",
+    "severity": "🟡",
+    "verifiability": "可验证",
+    "original": "- 基于 RocketMQ 事务消息保证\"订单下发 → 库存扣减\"最终一致，累计处理消息 1.2 亿条；",
+    "why": "只有结果数字没有口径，面试官一问分子分母就答不上，等于自曝注水",
+    "probe_hint": "该数字（1.2亿）的分子、分母与统计周期",
+    "source": "resume"
+  },
+  {
+    "id": "R-07",
+    "type": "机制存疑",
+    "severity": "🟡",
+    "verifiability": "可验证",
+    "original": "- 语言与框架：Java 17、Spring Boot 3、MyBatis-Plus、Dubbo",
+    "why": "简历提到「语言与」，但机制类表述必须能讲清失败路径与代价，否则像背概念",
+    "probe_hint": "语言与 的失败路径：什么情况下会失效、失效后怎么发现、怎么补救",
+    "source": "resume"
+  }
+]

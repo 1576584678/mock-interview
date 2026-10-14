@@ -31,3 +31,26 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# ---- P6 示例：示例本身就是交付物，所以对 examples/ 反向放行 ----
+# （git 规则：父目录被排除时无法再包含子文件，因此必须先放行目录本身）
+!examples/
+!examples/**
+!examples/minimal/work/out/
+!examples/minimal/work/out/**
+!examples/minimal/work/rounds/
+!examples/minimal/work/rounds/**
+!examples/minimal/01_面试对话实录.md
+!examples/minimal/02_复盘报告.md
+!examples/minimal/03_薪资建议.md
+!examples/minimal/04_简历风险点.md
+!examples/minimal/05_改后简历.html
+# 回归测试简历与 JD 属于测试资产，必须入库
+!tests/resumes/
+!tests/resumes/**
+!tests/jd/
+!tests/jd/**
+# tools/ 与 INSTALL.md 是打包产物
+!tools/
+!tools/**
+!INSTALL.md

@@ -39,7 +39,12 @@ python pipeline/verify_evidence.py --root . --resume out/real/resume.json \
       --author liyuelin --out out/evidence.json
 python pipeline/report.py --root . --only 04 --evidence out/evidence.json   # 04 带代码验真列
 
-python tests/run_tests.py                     # 143 项回归测试
+python tests/run_tests.py                     # 163 项回归测试
+
+# P6 自检（环境 + 全部回归 + 触发词）
+python tools/selfcheck.py
+python tests/check_resumes.py                 # 3 份回归简历
+python tools/check_skill.py                   # SKILL.md 触发词/格式
 ```
 
 中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
@@ -61,7 +66,14 @@ python tests/run_tests.py                     # 143 项回归测试
 | `export_resume.py` | P5 | ✅ | 渲染 `05_改后简历.html`：成对替换（不新增数字）、改动说明打印隐藏、PDF 人工闸门 |
 | `verify_links.py` | P5 | ✅ | 验收 A5：五件套编号引用闭环（无悬空 / 无孤岛 / 全部进 04） |
 | `verify_evidence.py` | P4 | ✅ | 代码/git 交叉核对：四档判决 + **面试可见性决定严重度**；只读白名单 + 前后 HEAD 比对 + 注释不算证据 |
-| `export_resume.py`（P4 复核） | P4 | ⬜ | 待开发 |
+
+配套工具（P6 打包，不属于 pipeline 数据流）：
+
+| 工具 | 用途 |
+|---|---|
+| `tools/selfcheck.py` | 一键自检：环境（Python/git/浏览器）+ 全部回归（163 + 34 + 17 项） |
+| `tools/check_skill.py` | SKILL.md 触发词与格式自检（frontmatter / 章节 / 脚本引用 / 五件套产出名） |
+| `tests/check_resumes.py` | 3 份回归简历的自动检查（含"三份画像必须不同"的差异化断言） |
 
 ## 约定
 
@@ -72,6 +84,25 @@ python pipeline/<script>.py --in <path> --out <path> [options]
 - 字符集统一 UTF-8；输出文件用 `UTF-8 (no BOM)`。
 - 失败时退出码非 0，并把错误写到 stderr，**不产生残缺的输出文件**。
 - 所有脚本必须支持 `--dry-run`（只打印将要做什么，不写文件）。
+
+### 路径约定（踩过坑，务必遵守）
+
+给了 `--root <工作区>` 的脚本，其余路径**一律相对该工作区**（也可以给绝对路径）：
+
+```bash
+python pipeline/score.py run --root examples/minimal/work --judgments judgments --out out/scorecard.json
+#                                                ^^^^^^^^^^^^^^^^^ 相对工作区，不是相对当前目录
+```
+
+两条已实现的兼容（`common.resolve_in` / `resolve_out`）：
+
+| 场景 | 行为 |
+|---|---|
+| 默认路径按"真实跑"写成 `out/real/x.json`，实际文件在 `out/x.json` | 自动回退到同名 `out/x.json`（首次使用者最常踩的一处） |
+| `--out` 写了相对当前目录的完整路径（`examples/x/work/out/a.json`） | 不会拼成嵌套目录 |
+
+> **刻意不做**"输入路径先看相对当前目录是否存在"：工作区是测试夹具、而仓库根目录又有同名
+> 真实产物时，那样会静默读到错误文件（这条真的踩过，见 `tests/run_tests.py` 第 17 组）。
 
 ---
 

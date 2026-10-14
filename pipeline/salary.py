@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from common import Log, die, read_text, write_json, now  # noqa: E402
+from common import Log, die, read_text, write_json, now, resolve_in, resolve_out  # noqa: E402
 
 # 无出处措辞黑名单：命中即拒绝产出
 FORBIDDEN = ["市场价", "市场行情", "行业均值", "行业平均", "同行价", "平均薪资",
@@ -145,10 +145,10 @@ def cmd_run(args):
     work = args.root
 
     def load(p, required=True):
-        fp = os.path.join(work, p)
+        fp = resolve_in(work, p)
         if not os.path.exists(fp):
             if required:
-                die(f"缺少输入文件: {fp}")
+                die(f"缺少输入文件: {os.path.join(work, p)}")
             return None
         return json.loads(read_text(fp))
 
@@ -158,7 +158,7 @@ def cmd_run(args):
     risks = load(args.risks, required=False) or []
 
     out = build(jd, scorecard, resume, risks)
-    out_path = args.out if os.path.isabs(args.out) else os.path.join(work, args.out)
+    out_path = resolve_out(work, args.out)
     write_json(out_path, out)
     r = out["recommended"]
     log.info(f"薪资建议: {out_path}")

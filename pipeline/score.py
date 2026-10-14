@@ -26,7 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from common import Log, die, read_text, write_json, write_text, now  # noqa: E402
+from common import Log, die, read_text, write_json, write_text, now, resolve_in, resolve_out  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -313,7 +313,7 @@ def cmd_run(args):
     risks = json.loads(read_text(risks_path)) if os.path.exists(risks_path) else []
     risk_ids = {r["id"] for r in risks}
 
-    jdir = os.path.join(work, args.judgments)
+    jdir = resolve_in(work, args.judgments, alt_dirs=())
     if not os.path.isdir(jdir):
         die(f"评审结果目录不存在: {jdir}")
 
@@ -347,7 +347,7 @@ def cmd_run(args):
         "summary": agg,
         "rows": rows,
     }
-    out_path = args.out if os.path.isabs(args.out) else os.path.join(work, args.out)
+    out_path = resolve_out(work, args.out)
     write_json(out_path, out)
     log.info(f"评分卡: {out_path}")
 

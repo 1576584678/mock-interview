@@ -1,0 +1,121 @@
+{
+  "title": "Java 开发工程师 · 供应链履约（仓储物流）",
+  "salary_range": [
+    20000,
+    35000
+  ],
+  "salary_note": "",
+  "must_have": [
+    {
+      "dimension": "业务场景",
+      "kind": "要求",
+      "text": "# Java 开发工程师 · 供应链履约（仓储物流）"
+    },
+    {
+      "dimension": "通用",
+      "kind": "要求",
+      "text": "本科及以上学历，3 年以上 Java 后端开发经验，Java 基础扎实；"
+    },
+    {
+      "dimension": "框架",
+      "kind": "要求",
+      "text": "熟练掌握 Spring Boot、MyBatis 等主流框架，理解 IoC / AOP 原理；"
+    },
+    {
+      "dimension": "通用",
+      "kind": "要求",
+      "text": "熟悉 MySQL，具备索引优化、慢查询分析与事务隔离级别的实践经验；"
+    },
+    {
+      "dimension": "中间件",
+      "kind": "要求",
+      "text": "熟悉 Redis，理解常见数据结构与缓存穿透 / 击穿 / 雪崩的应对方案；"
+    },
+    {
+      "dimension": "中间件",
+      "kind": "要求",
+      "text": "熟悉消息队列（Kafka / RocketMQ），理解消息可靠投递与幂等消费；"
+    },
+    {
+      "dimension": "稳定性",
+      "kind": "要求",
+      "text": "有限流、降级、熔断的实践经验；"
+    },
+    {
+      "dimension": "JVM",
+      "kind": "要求",
+      "text": "有良好的问题定位能力，能独立排查线上 CPU、内存、GC 问题；"
+    },
+    {
+      "dimension": "分布式数据库",
+      "kind": "要求",
+      "text": "熟悉分布式事务常见方案与最终一致性设计。"
+    }
+  ],
+  "nice_to_have": [
+    {
+      "dimension": "业务场景",
+      "kind": "加分",
+      "text": "有仓储、物流、履约类业务系统经验；"
+    },
+    {
+      "dimension": "分布式数据库",
+      "kind": "加分",
+      "text": "熟悉 MySQL 分库分表、读写分离、数据一致性方案，了解 TiDB / MyCAT 者优先；"
+    },
+    {
+      "dimension": "工程化",
+      "kind": "加分",
+      "text": "有 K8s、容器化部署与 CI/CD 实践经验；"
+    },
+    {
+      "dimension": "JVM",
+      "kind": "加分",
+      "text": "有大数据量场景下的性能调优经验（单表亿级）。"
+    }
+  ],
+  "duties": [
+    {
+      "dimension": "业务场景",
+      "kind": "职责",
+      "text": "负责供应链履约域（仓储、物流）后端系统的设计、开发与线上问题定位；"
+    },
+    {
+      "dimension": "业务场景",
+      "kind": "职责",
+      "text": "参与出库、波次、面单、运费结算等核心链路的需求评审与方案设计；"
+    },
+    {
+      "dimension": "稳定性",
+      "kind": "职责",
+      "text": "承接大促保障，参与容量评估、压测与限流降级预案；"
+    },
+    {
+      "dimension": "通用",
+      "kind": "职责",
+      "text": "推动现有系统的性能优化与稳定性治理。"
+    }
+  ],
+  "dimensions": [
+    "JVM",
+    "框架",
+    "中间件",
+    "分布式数据库",
+    "稳定性",
+    "业务场景",
+    "工程化"
+  ],
+  "business_context": "供应链履约 / 仓储物流",
+  "hidden_pain_points": [
+    "跨库/跨系统数据一致性如何保证（对账、补偿、幂等）",
+    "作业效率与波次/路径优化；异常件与超时件的兜底",
+    "流量突增时的限流与降级策略，以及故障恢复",
+    "消息不丢不重与顺序性"
+  ],
+  "_meta": {
+    "source": "C:\\Users\\hp\\Documents\\deepseek-harness\\default-workspace\\mock-interview\\examples\\minimal\\input\\示例JD.txt",
+    "generated_at": "2026-10-14 14:50:04",
+    "chars": 648,
+    "warnings": []
+  }
+}

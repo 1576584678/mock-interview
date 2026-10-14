@@ -39,6 +39,8 @@ import transcript as transcript_mod       # noqa: E402
 import export_resume as export_mod        # noqa: E402
 import verify_links as links_mod          # noqa: E402
 import verify_evidence as verify_mod      # noqa: E402
+import parse_resume as resume_mod         # noqa: E402
+import parse_jd as jd_mod                 # noqa: E402
 
 RESUME = os.path.join(HERE, "fixtures", "sample_resume.md")
 JD = os.path.join(HERE, "fixtures", "sample_jd.txt")
@@ -777,6 +779,129 @@ def main():
     check("验真 md 落盘且含可复现命令",
           os.path.exists(os.path.join(p4, "out", "ev2.md"))
           and "rev-list" in open(os.path.join(p4, "out", "ev2.md"), encoding="utf-8").read())
+
+    print("\n=== 17. P6 打包：首次使用者踩到的解析/门槛问题 ===")
+    p6 = os.path.join(HERE, "tmp", "p6")
+    shutil.rmtree(p6, ignore_errors=True)
+    os.makedirs(p6, exist_ok=True)
+
+    def _parse_resume(text, name):
+        p = os.path.join(p6, name)
+        open(p, "w", encoding="utf-8").write(text)
+        out = os.path.join(p6, name + ".json")
+        subprocess.run([sys.executable, os.path.join(ROOT, "pipeline", "parse_resume.py"),
+                        "--in", p, "--out", out, "--text-out", out + ".txt"],
+                       capture_output=True, check=True)
+        return json.loads(open(out, encoding="utf-8").read())
+
+    r = _parse_resume("# 陈一鸣 · 后端开发工程师\n\n## 基本信息\n\n本科 ｜ 工作 6 年 ｜ 现居杭州\n\n"
+                      "## 专业技能\n\n- 中间件：RocketMQ、Kafka（3 个 Topic）\n- 存储：MySQL、Redis\n\n"
+                      "## 工作经历\n\n### 某某科技 ｜ 后端开发工程师 ｜ 2021.03 – 至今\n\n"
+                      "- 负责出库单模块开发与线上问题定位。\n",
+                      "name.md")
+    check("Markdown 标题行「姓名 · 职位」被拆对",
+          r["basic"]["name"] == "陈一鸣" and "工程师" in (r["basic"]["title"] or ""),
+          r["basic"])
+    check("章节标题不会被当成姓名", r["basic"]["name"] != "基本信息", r["basic"]["name"])
+    check("「工作 6 年」能解析出年限", r["basic"]["years"] == 6, r["basic"]["years"])
+
+    r2 = _parse_resume("姓名：王大力\n\n个人优势：12 年 Java 后端经验，精通 JVM。\n\n"
+                       "专业技能\n\n精通 Kafka、RocketMQ；熟练 MySQL 索引优化；熟悉 Redis 缓存架构。\n\n"
+                       "## 工作经历\n\n### 某某公司 ｜ 高级开发工程师 ｜ 2016.06 – 2021.12\n\n"
+                       "- 负责订单核心模块开发。\n",
+                       "prose.md")
+    check("「姓名：X」显式声明优先", r2["basic"]["name"] == "王大力", r2["basic"]["name"])
+    check("散文式技能段（无分类：清单结构）也能抽出技能",
+          r2["skills"] and sum(len(s["items"]) for s in r2["skills"]) >= 3,
+          r2["skills"])
+    check("散文式技能段的「精通/熟练/熟悉」被记成能力声明",
+          any(s["proficiency_claims"] for s in r2["skills"]),
+          [s["proficiency_claims"] for s in r2["skills"]])
+
+    # 口径识别：这不是「有没有写"口径"两个字」，而是「能不能自证统计方式」
+    r3 = _parse_resume("## 工作经历\n\n### 某某公司 ｜ 后端开发工程师 ｜ 2021.03 – 至今\n\n"
+                       "- 接口 P99 从 1.8 秒降到 320 毫秒（统计窗口 7 天，取自 SkyWalking 埋点）。\n"
+                       "- 拦截率提升至 95%。\n", "def.md")
+    qs = r3["claims"]["quantitative"]
+    with_def = [q for q in qs if q["has_definition"]]
+    check("带统计窗口/来源的声明被判为「有口径」", len(with_def) >= 1, qs)
+    check("只写结果的百分比仍判为「无口径」",
+          any(("95%" in q["text"]) and not q["has_definition"] for q in qs),
+          [(q["text"][:24], q["has_definition"]) for q in qs])
+
+    jd_strict = {"must_have": [{"text": "3 年以上 Java 后端开发经验"},
+                               {"text": "本科及以上学历，Java 基础扎实"}],
+                 "duties": [], "nice_to_have": []}
+    thin = {"basic": {"years": 1}, "education": [{"text": "市场营销 本科"}],
+            "timeline_gaps": [], "skills": [], "claims": {"quantitative": [], "mechanism": []}}
+    rs = risks_mod.seed_risks(thin, jd_strict)
+    check("年限不足 → 硬性门槛 🔴（HR 初筛硬伤）",
+          any(x["type"] == "硬性门槛" and x["severity"] == "🔴" for x in rs),
+          [(x["id"], x["type"], x["severity"]) for x in rs])
+    ok_years = dict(thin, basic={"years": 6})
+    rs2 = risks_mod.seed_risks(ok_years, jd_strict)
+    check("年限满足 → 不产生硬性门槛",
+          not any(x["type"] == "硬性门槛" for x in rs2), rs2)
+    low_edu = {"basic": {"years": 6}, "education": [{"text": "某某学院 大专"}],
+               "timeline_gaps": [], "skills": [], "claims": {"quantitative": [], "mechanism": []}}
+    rs3 = risks_mod.seed_risks(low_edu, jd_strict)
+    check("学历低于 JD 要求 → 硬性门槛",
+          any(x["type"] == "硬性门槛" for x in rs3), rs3)
+
+    # prompts 回退：用户自己的目录里没有 prompts/ 也能出题
+    rp = os.path.join(p6, "noroot")
+    os.makedirs(rp, exist_ok=True)
+    pc = orch.prompt_path(rp, "interviewer.md")
+    check("工作区缺 prompts/ 时回退到 skill 自带提示词",
+          os.path.exists(pc) and os.path.normpath(pc).startswith(
+              os.path.normpath(os.path.join(ROOT, "prompts"))), pc)
+
+    jd_t = os.path.join(p6, "jd.md")
+    open(jd_t, "w", encoding="utf-8").write("# Java 开发工程师 · 供应链履约\n\n薪资 20K-35K\n")
+    jo = os.path.join(p6, "jd.json")
+    subprocess.run([sys.executable, os.path.join(ROOT, "pipeline", "parse_jd.py"),
+                    "--in", jd_t, "--out", jo], capture_output=True, check=True)
+    check("JD 标题不残留 Markdown 的 #",
+          not json.loads(open(jo, encoding="utf-8").read())["title"].startswith("#"),
+          json.loads(open(jo, encoding="utf-8").read())["title"])
+
+    # 路径回退：默认按 out/real/ 布局写死，首次使用者（含示例）用的是 out/
+    w2 = os.path.join(p6, "fallback")
+    os.makedirs(os.path.join(w2, "out"), exist_ok=True)
+    open(os.path.join(w2, "out", "jd.json"), "w", encoding="utf-8").write('{"title":"回退用"}')
+    got = report_mod.load(w2, os.path.join("out", "real", "jd.json"))
+    check("默认路径写的是 out/real/x.json 时，回退到 out/x.json",
+          got and got.get("title") == "回退用", got)
+    check("可选文件缺失时返回 None 而不是报错",
+          report_mod.load(w2, os.path.join("out", "real", "nope.json"), required=False) is None)
+    try:
+        report_mod.load(w2, os.path.join("out", "real", "nope.json"))
+        missing_ok = False
+    except SystemExit:
+        missing_ok = True
+    check("缺文件且 required=True 时直接退出（不生成半成品）", missing_ok)
+
+    # 路径解析：既不能漏回退，也不能把"用户写的完整路径"再拼一次（会造出嵌套目录）
+    c = __import__("common")
+    w3 = os.path.join(p6, "nest")
+    deep = os.path.join(w3, "examples", "minimal", "work", "out")
+    os.makedirs(deep, exist_ok=True)
+    open(os.path.join(deep, "scorecard.json"), "w", encoding="utf-8").write("{}")
+    rel_from_cwd = os.path.join(w3, "examples", "minimal", "work", "out", "scorecard.json")
+    check("resolve_in 回退到 out/<同名>（默认路径按 out/real/ 写死时也能跑）",
+          os.path.normpath(c.resolve_in(os.path.join(w3, "examples", "minimal", "work"),
+                                        os.path.join("out", "real", "scorecard.json")))
+          == os.path.normpath(rel_from_cwd),
+          c.resolve_in(os.path.join(w3, "examples", "minimal", "work"),
+                       os.path.join("out", "real", "scorecard.json")))
+    check("resolve_in 不回退去读「相对当前目录的同名文件」（防止静默读错文件）",
+          os.path.normpath(c.resolve_in(os.path.join(w3, "examples", "minimal", "work"),
+                                        "out/scorecard.json"))
+          == os.path.normpath(os.path.join(w3, "examples", "minimal", "work", "out", "scorecard.json")))
+    check("resolve_out 不会造出嵌套目录",
+          os.path.normpath(c.resolve_out(os.path.join(w3, "examples", "minimal", "work"), rel_from_cwd))
+          == os.path.normpath(rel_from_cwd),
+          c.resolve_out(os.path.join(w3, "examples", "minimal", "work"), rel_from_cwd))
 
     print(f"\n===== 结果: {len(PASS)} 通过 / {len(FAIL)} 失败 =====")
     if FAIL:

@@ -84,7 +84,19 @@ python pipeline/report.py --root . --only 04 --evidence out/evidence.json  # 04 
 
 ## 输出契约
 
-见 `docs/OUTPUT_CONTRACT.md`。五件套固定命名、固定章节；风险点带编号并与对话、评分、简历改动互相引用。
+一次完整运行产出**五件套**（固定文件名，落在工作区根目录）：
+
+| 文件 | 内容 | 核心要求 |
+|---|---|---|
+| `01_面试对话实录.md` | 双 agent 逐字稿：面试官提问 → 候选人回答 → 追问链（标注层次） | 字段直接取自 `rounds/round-N.json`，不做二次创作 |
+| `02_复盘报告.md` | 分维度评分、雷区命中、改进清单、参考话术 | 全部由 rubric 驱动，无原话不扣分 |
+| `03_薪资建议.md` | 期望薪资区间 + 推理链 + 依据声明 | 只给区间；禁止无出处的市场行情数据 |
+| `04_简历风险点.md` | 风险点清单（R-xx 编号）+ 改写建议 + 代码验真 + 面试前必做 | 按**面试可见性**排序；不把"查不到"说成编造 |
+| `05_改后简历.html` | 修复版简历（+ 可选 PDF） | 只改表述不新增事实；改动说明打印时自动隐藏 |
+
+另有中间产物 `out/*.json`（结构化简历 / JD / 评分 / 薪资 / 验真）与 `rounds/`（每轮问答与状态）。
+细节章节规范见 [`docs/OUTPUT_CONTRACT.md`](docs/OUTPUT_CONTRACT.md)；
+**可直接查看的完整示例**见 [`examples/minimal/`](examples/minimal/)。
 
 ## 硬约束
 
@@ -107,3 +119,17 @@ python pipeline/report.py --root . --only 04 --evidence out/evidence.json  # 04 
 | 无代码仓库 | 跳过验真层，所有风险点标注"仅基于文本判断" |
 | 模型调用超预算 | 降至 1 轮（4–6 题），优先保证复盘与风险点完整 |
 | 薪资数据不足 | 只给 JD 区间定位 + 相对位置（中位/偏上/偏下），不编造绝对数字 |
+| `prepare` 报找不到 `prompts/*.md` | 提示词属于 skill 自带资产：脚本会自动回退到 skill 目录下的 `prompts/`；若仍失败，说明 skill 目录不完整 |
+| PDF 导出报 `platform_channel.cc ... 拒绝访问` | 当前会话在受限沙箱里（浏览器进程间通信需要命名管道）：改为用浏览器打开 `05_改后简历.html` 打印 |
+
+## 安装与自检
+
+首次使用（含环境检查与一键回归，**不调用模型**）：
+
+```bash
+python tools/selfcheck.py      # 环境 + 163 项回归 + 3 份回归简历 + SKILL.md 触发词
+python tools/check_skill.py    # 只查本文件的 frontmatter/章节/脚本引用/产出名
+```
+
+完整示例（输入 + 五件套产物 + 复现命令）见 [`examples/minimal/`](examples/minimal/)；
+安装说明与常见问题见 [`INSTALL.md`](INSTALL.md)。

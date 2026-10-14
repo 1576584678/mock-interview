@@ -1,0 +1,71 @@
+{
+  "taken_at": "2026-10-14 15:12:50",
+  "author_filter": "",
+  "repos": {},
+  "readonly_verified": true,
+  "claims": [
+    {
+      "id": "E-11",
+      "kind": "mechanism",
+      "title": "分库分表落地",
+      "claim_text": "分库分表",
+      "visibility": "不可判",
+      "method": "grep 分库分表实现（ShardingSphere|sharding-jdbc|分片键|shardingStrategy|TableSharding）",
+      "confidence": 0.9,
+      "is_fabrication": false,
+      "expected": null,
+      "risk_types": [
+        "夸大词"
+      ],
+      "verdict": "无法验证",
+      "observed": "未提供仓库（--repo qydn=<路径>）",
+      "why": "没有可取证的材料，只能按话术准备，不判编造",
+      "command": "（需提供仓库）",
+      "evidence": "未提供仓库（--repo qydn=<路径>）",
+      "severity": "⚪",
+      "interview_action": "只准备话术，不必改简历：任何人都无法取证",
+      "risk_ids": []
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "by_verdict": {
+      "可信": 0,
+      "存疑": 0,
+      "与事实不符": 0,
+      "无法验证": 1
+    },
+    "by_visibility": {
+      "当场可判": 0,
+      "追问可判": 0,
+      "需材料才可判": 0,
+      "不可判": 1
+    },
+    "must_fix": [],
+    "must_prepare": [],
+    "verified_ok": [],
+    "no_prep_needed": [
+      "E-11"
+    ],
+    "fabrications": []
+  },
+  "_meta": {
+    "generator": "pipeline/verify_evidence.py",
+    "rules": [
+      "E-01",
+      "E-02",
+      "E-03",
+      "E-04",
+      "E-05",
+      "E-06",
+      "E-07",
+      "E-08",
+      "E-09",
+      "E-10",
+      "E-11",
+      "E-12"
+    ],
+    "resume": "out/resume.json",
+    "note": "严重度由面试可见性决定；is_fabrication 只能由面试实录（P3）置位"
+  }
+}

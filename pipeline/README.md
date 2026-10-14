@@ -1,15 +1,26 @@
 # pipeline · 脚本接口约定
 
-> 本目录实现进度：**P1 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` / `parse_jd.py`）；
+> 本目录实现进度：**P1、P2 已完成**（`common.py` / `extract_text.py` / `parse_resume.py` /
+> `parse_jd.py` / `risks.py` / `orchestrate.py`）；
 > P4（`verify_evidence.py`）与 P5（`export_resume.py`）仍待开发。
 > 所有脚本遵循同一约定：**读 JSON / 写 JSON，参数走命令行，不依赖第三方库（优先）。**
 
 ## 运行方式
 
 ```bash
+# P1 解析
 python pipeline/parse_resume.py --in 简历.pdf --out out/resume.json --text-out out/resume.txt
 python pipeline/parse_jd.py     --in jd.txt   --out out/jd.json
-python tests/run_tests.py                     # 37 项回归测试
+
+# P2 演练编排（本脚本不调用模型，模型调用由宿主 agent 执行）
+python pipeline/orchestrate.py init              --resume out/resume.json --jd out/jd.json --root .
+python pipeline/orchestrate.py prepare           --round 1 --root .
+python pipeline/orchestrate.py prepare-candidate --round 1 --root .
+python pipeline/orchestrate.py commit            --round 1 --root . \
+      --questions rounds/round-1.interviewer.json --answers rounds/round-1.answers.json
+python pipeline/orchestrate.py check             --root .   # DoD 覆盖校验，未达标返回 1
+
+python tests/run_tests.py                     # 49 项回归测试
 ```
 
 中文环境建议先设 `PYTHONUTF8=1`，避免控制台编码导致的乱码。
@@ -18,10 +29,12 @@ python tests/run_tests.py                     # 37 项回归测试
 
 | 脚本 | 阶段 | 状态 | 说明 |
 |---|---|---|---|
-| `common.py` | P1 | ✅ | 原子写文件、日志走 stderr、`--dry-run` |
+| `common.py` | P1 | ✅ | 原子写文件、`as_text` 展平、日志走 stderr、`--dry-run` |
 | `extract_text.py` | P1 | ✅ | 多级降级：pdftotext → LibreOffice → 内置解析 |
 | `parse_resume.py` | P1 | ✅ | 章节切分、经历/项目/技能/教育、空窗检测、claims 清单 |
-| `parse_jd.py` | P1 | ✅ | 薪资区间、硬性/加分、维度、业务场景、隐藏痛点 |
+| `parse_jd.py` | P1 | ✅ | 章节化归类（要求/职责/加分，零丢失）、薪资、维度、隐藏痛点 |
+| `risks.py` | P2 | ✅ | 风险点种子（编号 R-01…，P2 追问目标与 P3 报告共用）|
+| `orchestrate.py` | P2 | ✅ | 轮次计划、提示词注入、契约校验、状态落盘、DoD 校验 |
 | `verify_evidence.py` | P4 | ⬜ | 待开发（护城河） |
 | `export_resume.py` | P5 | ⬜ | 待开发 |
 

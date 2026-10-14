@@ -453,6 +453,19 @@ def timeline_gaps(experiences):
 
 def extract_claims(text):
     sents = [s.strip() for s in re.split(r"(?<=[。；;!?！？\n])", text) if s.strip()]
+
+    # PDF 常在数字处断行了（「……准确率达」+「99.98%。」）。这类碎片并回上一句，
+    # 否则 claims 里会出现「99.98%。」这种没有上下文的孤立条目，
+    # 面试官和验真层都没法用。
+    merged = []
+    for s in sents:
+        if (merged and len(s) <= 14 and re.match(r"^[\d.]+", s)
+                and not re.search(r"[\u4e00-\u9fa5]{4,}", s)):
+            merged[-1] = merged[-1] + s
+        else:
+            merged.append(s)
+    sents = merged
+
     quant, mech, seen_q, seen_m = [], [], set(), set()
 
     for s in sents:

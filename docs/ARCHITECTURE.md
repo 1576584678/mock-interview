@@ -5,8 +5,8 @@
 | 层 | 职责 | 输入 | 输出 | 可单独重跑 |
 |---|---|---|---|---|
 | L0 输入层 | 把异构输入变成稳定 JSON | 简历文件 / JD 文本 / 代码路径 | `resume.json` `jd.json` `evidence.json` | ✅ |
-| L1 分析层 | 匹配分析与风险识别 | L0 产物 | `match.json` `risks.json` | ✅ |
-| L2 演练层 | 双 agent 多轮面试 | `jd.json` 维度 + `resume.json` + `risks.json` | `rounds/*.json` + `01_面试对话实录.md` | ✅（按轮） |
+| L1 分析层 | 匹配分析与风险识别 | L0 产物 | `match.json`（待 P3）`out/risks.json`（已实现：`pipeline/risks.py`） | ✅ |
+| L2 演练层 | 双 agent 多轮面试 | `jd.json` 维度 + `resume.json` + `out/risks.json` | `rounds/*.json` + `01_面试对话实录.md` | ✅（按轮） |
 | L3 评估层 | 评分、薪资、改写 | L1 + L2 产物 + rubric | `scorecard.csv` `02/03/04*.md` | ✅ |
 | L4 产出层 | 渲染与导出 | L3 产物 + templates | 五件套最终文件 | ✅ |
 

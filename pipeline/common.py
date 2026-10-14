@@ -74,6 +74,23 @@ def now() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def as_text(v) -> str:
+    """把任意 JSON 值展平成文本。
+
+    解析层产出的字段类型不统一（`summary` 是字符串列表，`highlights` 是列表，
+    `basic` 是字典），拼接字符串时到处 `TypeError`。统一在这里兜住。
+    """
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        return " ".join(as_text(x) for x in v.values())
+    if isinstance(v, (list, tuple, set)):
+        return " ".join(as_text(x) for x in v)
+    return str(v)
+
+
 def base_parser(desc: str) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=desc)
     p.add_argument("--in", dest="inp", required=True, help="输入文件")

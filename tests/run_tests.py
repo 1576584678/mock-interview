@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""P1 解析层回归测试（纯函数调用，不使用子进程管道）。
+"""P1 解析层 + P2 演练层回归测试（纯函数调用，不使用子进程管道）。
 
 用法:
   python tests/run_tests.py
@@ -9,10 +9,16 @@
   2. parse_resume 关键字段：姓名/年限/经历数/空窗/技能
   3. claims：量化声明与机制声明是否被单独抽出
   4. parse_jd：薪资区间/维度/业务场景/硬性要求/加分项/隐藏痛点
+  5. P2：风险点种子、轮次编排、模板渲染、契约校验、中断续跑、DoD 覆盖校验
 """
 from __future__ import annotations
 
+import argparse
+import contextlib
+import io
+import json
 import os
+import shutil
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +28,9 @@ sys.path.insert(0, os.path.join(ROOT, "pipeline"))
 from extract_text import extract          # noqa: E402
 from parse_jd import parse_jd             # noqa: E402
 from parse_resume import parse            # noqa: E402
-from common import Log                    # noqa: E402
+from common import Log, write_json        # noqa: E402
+import orchestrate as orch                # noqa: E402
+import risks as risks_mod                 # noqa: E402
 
 RESUME = os.path.join(HERE, "fixtures", "sample_resume.md")
 JD = os.path.join(HERE, "fixtures", "sample_jd.txt")
@@ -119,6 +127,130 @@ def main():
               len(dp["claims"]["quantitative"]))
     else:
         print("  [SKIP] 未提供真实 PDF 路径（设置环境变量后本组用例会真实执行）")
+
+    print("\n=== 8. P2 风险种子 ===")
+    res = parse(open(RESUME, encoding="utf-8").read(), RESUME, "md", [])
+    jd = parse_jd(open(JD, encoding="utf-8").read())
+    rs = risks_mod.seed_risks(res, jd)
+    ids = [r["id"] for r in rs]
+    check("风险点编号连续", ids == [f"R-{i:02d}" for i in range(1, len(rs) + 1)], ids)
+    check("风险点非空", len(rs) >= 3, len(rs))
+    check("含时间线风险", any(r["type"] == "时间线" for r in rs),
+          [r["type"] for r in rs])
+    check("严重度有区分", len({r["severity"] for r in rs}) >= 2,
+          {r["severity"] for r in rs})
+    check("每条都有追问方向", all(r.get("probe_hint") for r in rs))
+
+    print("\n=== 9. P2 轮次编排（假跑：不调用模型）===")
+    p2root = os.path.join(HERE, "tmp", "p2root")
+    shutil.rmtree(p2root, ignore_errors=True)  # 清掉上一轮产物，避免假绿
+    os.makedirs(os.path.join(p2root, "rounds"), exist_ok=True)
+    write_json(os.path.join(p2root, "resume.json"), res)
+    write_json(os.path.join(p2root, "jd.json"), jd)
+
+    def ns(**kw):
+        kw.setdefault("quiet", True)
+        return argparse.Namespace(**kw)
+
+    orch.cmd_init(ns(root=p2root, resume=os.path.join(p2root, "resume.json"),
+                     jd=os.path.join(p2root, "jd.json"), max_rounds=3, max_risks=12))
+    st = orch.load_state(p2root)
+    plan_dims = sorted(d for v in st["plan"].values() for d in v["dims"])
+    plan_risks = sorted(r for v in st["plan"].values() for r in v["risks"])
+    check("计划覆盖全部硬性维度", plan_dims == sorted(st["must_dims"]), plan_dims)
+    check("计划覆盖全部风险点", plan_risks == sorted(r["id"] for r in st["risks"]))
+    check("每轮题量配额合理", all(len(v["dims"]) + 1 <= orch.QUESTIONS_PER_ROUND
+                                  for v in st["plan"].values()))
+
+    # 渲染：不能有未注入的占位符
+    os.makedirs(os.path.join(p2root, "prompts"), exist_ok=True)
+    for name in ("interviewer.md", "candidate.md"):
+        with open(os.path.join(ROOT, "prompts", name), encoding="utf-8") as f:
+            with open(os.path.join(p2root, "prompts", name), "w", encoding="utf-8") as g:
+                g.write(f.read())
+    orch.cmd_prepare(ns(root=p2root, round=1))
+    body = open(os.path.join(p2root, "rounds", "round-1.interviewer.md"),
+                encoding="utf-8").read()
+    check("出题模板已完全渲染", "{{" not in body and len(body) > 800, len(body))
+
+    def fake_round(round_no, drop_risk=None):
+        """按计划造一份合法出题 + 答题，用于验证 commit/check。"""
+        v = st["plan"][str(round_no)]
+        qs = []
+        for i, d in enumerate(v["dims"] or ["通用"], 1):
+            qs.append({"qid": f"Q{i}", "dimension": d, "question": f"{d} 的问题 {i}",
+                       "targets_risk": [], "expected_signals": ["有数字与口径"],
+                       "followups": [f"追问 {d} 第 1 层", f"追问 {d} 第 2 层"]})
+        for j, rid in enumerate(v["risks"], len(qs) + 1):
+            if rid == drop_risk:
+                continue
+            qs.append({"qid": f"Q{j}", "dimension": "通用",
+                       "question": f"关于 {rid} 的追问", "targets_risk": [rid],
+                       "expected_signals": ["给出边界"], "followups": ["追一层", "追两层"]})
+        items = [{"qid": q["qid"], "answer": "这是一个足够长的正式回答" * 3,
+                  "duration_seconds": 80, "confidence": "基本确定", "self_flags": [],
+                  "followups": [{"question": f, "answer": "追问的回答，说明边界与取舍"}
+                                for f in q["followups"]]} for q in qs]
+        qp = os.path.join(p2root, "rounds", f"round-{round_no}.interviewer.json")
+        ap = os.path.join(p2root, "rounds", f"round-{round_no}.answers.json")
+        write_json(qp, {"round": round_no, "theme": v["theme"], "questions": qs})
+        write_json(ap, {"round": round_no, "items": items,
+                        "candidate_questions": ["团队现状如何？", "对账是人工还是自动？"]})
+        return qp, ap
+
+    qp, ap = fake_round(1, drop_risk=st["plan"]["1"]["risks"][0])
+
+    # 契约校验：题量不足必须被拒绝（不能把残缺出题喂给求职者 agent）
+    good = json.load(open(qp, encoding="utf-8"))
+    write_json(qp, {"round": 1, "theme": "x", "questions": good["questions"][:2]})
+    try:
+        orch.cmd_prepare_candidate(ns(root=p2root, round=1))
+        rejected = False
+    except SystemExit as e:
+        rejected = e.code != 0
+    check("题量不足被拒绝", rejected)
+    write_json(qp, good)
+
+    orch.cmd_prepare_candidate(ns(root=p2root, round=1))
+    cbody = open(os.path.join(p2root, "rounds", "round-1.candidate.md"),
+                 encoding="utf-8").read()
+    check("答题模板注入问题且已渲染",
+          "{{" not in cbody and "关于 R-" in cbody, len(cbody))
+
+    orch.cmd_commit(ns(root=p2root, round=1, questions=qp, answers=ap))
+    st = orch.load_state(p2root)
+    check("commit 后状态更新", st["current_round"] == 1 and st["calls"] == 2, st["calls"])
+    check("追问层数被记录", len(json.load(open(
+        os.path.join(p2root, "rounds", "round-1.json"), encoding="utf-8"))["items"][0]["followups"]) == 2)
+
+    # 覆盖不全时 check 必须失败（表格输出静音，断言已覆盖被检查的逻辑）
+    with contextlib.redirect_stdout(io.StringIO()):
+        try:
+            orch.cmd_check(ns(root=p2root))
+            failed = False
+        except SystemExit as e:
+            failed = e.code != 0
+    check("覆盖不全时 check 返回非 0", failed)
+
+    # 中断续跑：直接 prepare 第 2 轮应能继续
+    orch.cmd_prepare(ns(root=p2root, round=2))
+    check("中断后可从下一轮继续",
+          os.path.exists(os.path.join(p2root, "rounds", "round-2.interviewer.md")))
+
+    # 补齐第 1 轮漏掉的风险点 + 第 2、3 轮
+    v1 = dict(st["plan"]["1"])
+    qp, ap = fake_round(1)
+    orch.cmd_commit(ns(root=p2root, round=1, questions=qp, answers=ap))
+    for r in (2, 3):
+        qp, ap = fake_round(r)
+        orch.cmd_commit(ns(root=p2root, round=r, questions=qp, answers=ap))
+    with contextlib.redirect_stdout(io.StringIO()):
+        try:
+            orch.cmd_check(ns(root=p2root))
+            passed = True
+        except SystemExit as e:
+            passed = e.code == 0
+    check("全部覆盖后 check 通过", passed)
 
     print(f"\n===== 结果: {len(PASS)} 通过 / {len(FAIL)} 失败 =====")
     if FAIL:

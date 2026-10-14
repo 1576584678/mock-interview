@@ -60,6 +60,20 @@ PAIN_RULES = [
 
 MUST_RE = re.compile(r"(负责|要求|熟悉|掌握|精通|具备|能够|参与|设计|了解|有.{0,6}经验)")
 NICE_RE = re.compile(r"(加分|优先|更佳|更好|额外|有.{0,12}者优先|bonus)", re.I)
+
+# 章节标题识别：JD 的可靠结构是"按章节分块"，靠关键词逐行猜是不可靠的。
+SECTION_PATTERNS = [
+    (re.compile(r"(任职要求|任职资格|岗位要求|职位要求|技能要求|你需要具备|我们期待你)"), "must"),
+    (re.compile(r"(加分项|加分条件|优先条件|bonus)", re.I), "nice"),
+    (re.compile(r"(岗位职责|工作职责|职位描述|工作内容|职责描述|你将负责)"), "duty"),
+]
+# 无章节信息时的技术线索
+TECH_HINT_RE = re.compile(
+    r"(Java|Spring|Redis|Kafka|RocketMQ|MySQL|Oracle|Postgre|Elasticsearch|JVM|多线程|高并发|"
+    r"分布式|微服务|中间件|数据库|并发|限流|熔断|降级|分库分表|读写分离|架构|性能|容器|K8s)"
+)
+# 招聘信息元数据行，不是要求
+META_RE = re.compile(r"^(薪资|薪水|待遇|月薪|年薪|经验|经验要求|地点|城市|学历|招聘|职位|岗位|编号|发布时间|所属|部门)")
 SALARY_PATTERNS = [
     (r"(\d{2,3})\s*[kK]\s*[-~—–－至到]\s*(\d{2,3})\s*[kK]", 1000),
     (r"(\d{2,3})\s*[-~—–－至到]\s*(\d{2,3})\s*[kK]", 1000),
@@ -70,9 +84,16 @@ ANNUAL_RE = re.compile(r"年薪\s*[:：]?\s*(\d{1,3})\s*[-~—–－至到]\s*(\
 
 
 def split_lines(text):
+    """按行切分并剥掉列表符号。
+
+    注意：只剥「列表符号」和「1. / 1、」这类编号，**不能连行首数字一起吃掉**——
+    早期版本用贪婪字符类匹配，把「5 年以上 Java 开发经验」剥成
+    「年以上 Java 开发经验」，年限直接丢了。
+    """
     out = []
     for raw in text.splitlines():
-        t = re.sub(r"^[\s>*+·•●○\-—–\d.、)）]+", "", raw).strip()
+        t = re.sub(r"^\s*(?:[>*+\u00b7\u2022\u25cf\u25cb\-\u2014\u2013]\s*"
+                   r"|\d{1,2}\s*[.\u3001)\uff09]\s*)+", "", raw).strip()
         if t:
             out.append(t)
     return out
@@ -107,14 +128,42 @@ def parse_jd(text):
     if not salary:
         warnings.append("未识别到薪资区间，薪资建议将退化为相对定位")
 
-    must, nice = [], []
+    # 按章节分块归类，而不是逐行猜关键词。
+    # 早期版本用「NICE_RE / MUST_RE 都不匹配就丢弃」的写法，把
+    # 「有限流、降级、熔断的实践经验」整条需求静默吃掉了——
+    # 丢需求比归错类严重得多，所以这里保证"零丢失"：没归类的行并进硬性要求并告警。
+    must, nice, duty, unclassified = [], [], [], []
+    section = None
     for ln in lines:
         if len(ln) < 4:
             continue
+        if title and ln == title:
+            continue
+        # 章节标题判定必须排在元数据过滤之前：
+        # 「岗位职责：」以「岗位」开头，会被 META_RE 当成招聘元数据吃掉，
+        # 职责段就整体错位到硬性要求里去了。
+        hit = None
+        for pat, name in SECTION_PATTERNS:
+            if len(ln) <= 22 and pat.search(ln):
+                hit = name
+                break
+        if hit:
+            section = hit
+            continue
+        if META_RE.search(ln):
+            continue
         if NICE_RE.search(ln):
             nice.append(ln)
-        elif MUST_RE.search(ln):
+        elif section == "duty":
+            duty.append(ln)
+        elif section == "nice":
+            nice.append(ln)
+        elif section == "must":
             must.append(ln)
+        elif MUST_RE.search(ln) or TECH_HINT_RE.search(ln):
+            must.append(ln)
+        else:
+            unclassified.append(ln)
 
     blob = text
     dims = [d for d, kws in DIMENSION_KEYWORDS.items()
@@ -134,8 +183,14 @@ def parse_jd(text):
         pains = [desc for kws, desc in PAIN_RULES
                  if any(k.lower() in blob.lower() for k in kws)][:2]
 
-    must_have = [{"dimension": guess_dimension(x), "text": x} for x in must]
-    nice_to_have = nice
+    must_have = [{"dimension": guess_dimension(x), "kind": "要求", "text": x} for x in must]
+    nice_to_have = [{"dimension": guess_dimension(x), "kind": "加分", "text": x} for x in nice]
+    duties = [{"dimension": guess_dimension(x), "kind": "职责", "text": x} for x in duty]
+    if unclassified:
+        warnings.append(f"{len(unclassified)} 行未能归类，已并入硬性要求，请人工核对："
+                        + "；".join(unclassified[:3]))
+        must_have += [{"dimension": guess_dimension(x), "kind": "未分类", "text": x}
+                      for x in unclassified]
     if not must_have:
         warnings.append("未识别到硬性要求行，请检查 JD 格式")
     if not nice_to_have:
@@ -147,6 +202,7 @@ def parse_jd(text):
         "salary_note": salary_note,
         "must_have": must_have,
         "nice_to_have": nice_to_have,
+        "duties": duties,
         "dimensions": dims,
         "business_context": ctx,
         "hidden_pain_points": pains,
